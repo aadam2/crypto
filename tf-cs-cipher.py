@@ -14,8 +14,60 @@ def frombits(bits): # Converts a list of bits into caracters
         chars.append(chr(int(''.join([str(bit) for bit in byte]), 2)))
     return ''.join(chars)
 
+def divide_list(bits_list, num): # Used to generate equal size subkeys
+    avg = len(bits_list) / float(num)
+    out = []
+    last = 0.0
+
+    while last < len(bits_list):
+        out.append(bits_list[int(last):int(last + avg)])
+        last += avg
+
+    return out
+
+def xoring_two_lists(list_A, list_B):
+    xored_list = []
+    list_size = len(list_A)
+    for i in range(list_size):
+        xored_list.append(list_A[i] ^ list_B[i])
+    return xored_list
+
+def xoring_list_of_lists(subkeys_list):
+    nb_lists = len(subkeys_list)
+    last_subkey = subkeys_list[0]
+    for i in range(1, nb_lists):
+        last_subkey = xoring_two_lists(last_subkey,subkeys_list[1])
+    print("Last subkey (without C yet) : {0}".format(last_subkey))
+
+    C = [0, 0, 0, 1, 1, 0, 1, 1, 1, 1, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 0, 1, 1, 1, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 0, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 1, 1, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0]
+    last_subkey = xoring_two_lists(last_subkey, C)
+    print("Last subkey (AFTER C XOR) : {0}".format(last_subkey))
+    return last_subkey
+
 # Functions definitions
-# def threefish_encrypt()
+
+# ThreeFish related
+def threefish_key_schedule(key, block_size):
+    nb_key_words = block_size / 64
+    print("Number of key words : {0}".format(nb_key_words))
+    keywords_list = divide_list(key, nb_key_words)
+    print("Keywords list : {0}".format(keywords_list))
+
+    # Now adding kN : kN = k0 ^ k1 ^ ... ^ k_N-1 ^ C
+    last_subkey = xoring_list_of_lists(keywords_list)
+    print("Received last subkey : {0}".format(last_subkey))
+
+    # Appending the last subkey to the key
+    keywords_list.append(last_subkey)
+    print("(Almost) Complete key words list : {0}".format(keywords_list))
+    print("(Almost) Complete key words list size : {0}".format(len(keywords_list)))
+    return
+
+
+def threefish_encrypt(key, msg_bits, block_size):
+    key_words = threefish_key_schedule(key, block_size) # Generating the key words
+    return
+
 
 # Calling user defined functions
 def main():
@@ -80,8 +132,8 @@ def main():
             print("Wow, an exactly {0} bit long key, I'm impressed".format(len(key_bits)))
         # ----------------------------------------------------------------------
 
-        # Now that the
-
+        # Now that the key size and the input size are OK, we may continue
+        threefish_encrypt(key_bits, bits_to_encrypt, block_size)
 
 if __name__ == "__main__":
     main()
