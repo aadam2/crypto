@@ -89,14 +89,10 @@ def threefish_key_schedule(key, block_size): # Generates the original keywords l
         for n in range(N-3): # Browsing the blocks
             current_index = (n + i) % (N + 1)
             print ("With i = {0} and n = {1}, we have current_index = {2}".format(i, n, current_index))
-            #round_list[n] = keywords_list[(n + i) % (N + 1)]
             round_list.append(keywords_list[(n + i) % (N + 1)])
         print("[4] - round_list so far : {0}".format(round_list))
-        # round_list[N-3] = xoring_two_lists(keywords_list[(N - 3 + i) % (N + 1)], tweaks[(i % 3)])
         round_list.append(xoring_two_lists(keywords_list[(N - 3 + i) % (N + 1)], tweaks[(i % 3)])) # N-3
-        #round_list[N-2] = xoring_two_lists(keywords_list[(N - 2 + i) % (N + 1)], tweaks[((i + 1) % 3)])
         round_list.append(xoring_two_lists(keywords_list[(N - 2 + i) % (N + 1)], tweaks[((i + 1) % 3)])) # N-2
-        #round_list[N-1] = keywords_list[(N - 1 + i) % (N + 1)] # TODO Do the correction modular addition here (with i)
         round_list.append(keywords_list[(N - 1 + i) % (N + 1)]) # TODO Do the correction modular addition here (with i). Anyway, N-1 here
         rounds_keywords_list.append(round_list)
 
@@ -104,9 +100,6 @@ def threefish_key_schedule(key, block_size): # Generates the original keywords l
 
 def threefish_encrypt(key, msg_bits, block_size):
     rounds_keywords_list = threefish_key_schedule(key, block_size) # Generating the key words
-    print("Keywords list for the different rounds : ")
-    print(rounds_keywords_list)
-
 
     print("rounds_keywords_list[0] : {0}".format(rounds_keywords_list[0])) # Keywords for round 1
     print("len(rounds_keywords_list) : {0}".format(len(rounds_keywords_list)))
@@ -135,7 +128,6 @@ def main():
         # ----------------------------------------------------------------------
         text_to_encrypt = raw_input("Text to encrypt : ")
         bits_to_encrypt = tobits(text_to_encrypt)
-        #print("Bits to encrypt : {0}".format(bits_to_encrypt))
         print("Text to encrypt size : {0} bits".format(len(bits_to_encrypt)))
         # ----------------------------------------------------------------------
 
@@ -143,7 +135,6 @@ def main():
         # ----------------------------------------------------------------------
         key = raw_input("Key : ")
         key_bits = tobits(key)
-        #print("Key bits : {0}".format(key_bits))
         print("Key size : {0}".format(len(key_bits)))
         # ----------------------------------------------------------------------
 
@@ -154,7 +145,6 @@ def main():
             # Padding zeros, so we've got at least one block to encrypt
             while len(bits_to_encrypt) < block_size:
                 bits_to_encrypt.append(0)
-            #print("New bits_to_encrypt : {0}".format(bits_to_encrypt))
             print("New nb_of_bits_to_encrypt : {0}".format(len(bits_to_encrypt)))
         # ----------------------------------------------------------------------
 
@@ -167,13 +157,11 @@ def main():
             while len(key_bits) < block_size:
                 key_bits.append(key_bits[i])
                 i+=1
-            #print("New key : {0}".format(key_bits))
             print("New key size : {0}".format(len(key_bits)))
         elif len(key_bits) > block_size:
             print("The key size ({0} bits) is greater than the block size ({1} bits)".format(len(key_bits), block_size))
             nb_of_bits_to_remove = len(key_bits) - block_size
             key_bits = key_bits[:len(key_bits)-nb_of_bits_to_remove]
-            #print("Shortened key : {0}".format(key_bits))
             print("Shortened key size : {0}".format(len(key_bits)))
         else:
             print("Wow, an exactly {0} bit long key, I'm impressed".format(len(key_bits)))
@@ -181,7 +169,6 @@ def main():
 
         # Now that the key size and the input size are OK, we may continue
         print("[1] - key_bits = {0} ; bits_to_encrypt = {1} ; block_size = {2}".format(len(key_bits), len(bits_to_encrypt), block_size))
-        #print("Key bits used : {0}".format(key_bits))
         threefish_encrypt(key_bits, bits_to_encrypt, block_size)
 
 if __name__ == "__main__":
