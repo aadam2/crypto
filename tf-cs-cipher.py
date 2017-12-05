@@ -26,17 +26,21 @@ def divide_list(bits_list, num): # Used to generate equal size subkeys
     return out
 
 def xoring_two_lists(list_A, list_B):
+    #print("[2] - XORing {0} and {1}".format(list_A, list_B))
     xored_list = []
     list_size = len(list_A)
     for i in range(list_size):
         xored_list.append(list_A[i] ^ list_B[i])
+    #print("[3] - XOR result : {0}".format(xored_list))
+    #print("####################################################################")
     return xored_list
 
 def xoring_list_of_lists(subkeys_list):
     nb_lists = len(subkeys_list)
     last_subkey = subkeys_list[0]
     for i in range(1, nb_lists):
-        last_subkey = xoring_two_lists(last_subkey,subkeys_list[1])
+        print("Having i = {0}".format(i))
+        last_subkey = xoring_two_lists(last_subkey,subkeys_list[i])
     print("Last subkey (without C yet) : {0}".format(last_subkey))
 
     C = [0, 0, 0, 1, 1, 0, 1, 1, 1, 1, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 0, 1, 1, 1, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 0, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 1, 1, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0]
@@ -55,17 +59,21 @@ def threefish_key_schedule(key, block_size):
 
     # Now adding kN : kN = k0 ^ k1 ^ ... ^ k_N-1 ^ C
     last_subkey = xoring_list_of_lists(keywords_list)
-    print("Received last subkey : {0}".format(last_subkey))
+    #print("Received last subkey : {0}".format(last_subkey))
 
     # Appending the last subkey to the key
     keywords_list.append(last_subkey)
-    print("(Almost) Complete key words list : {0}".format(keywords_list))
-    print("(Almost) Complete key words list size : {0}".format(len(keywords_list)))
-    return
+    #print("(Almost) Complete key words list : {0}".format(keywords_list))
+    #print("(Almost) Complete key words list size : {0}".format(len(keywords_list)))
+    return keywords_list
 
 
 def threefish_encrypt(key, msg_bits, block_size):
-    key_words = threefish_key_schedule(key, block_size) # Generating the key words
+    keywords_list = threefish_key_schedule(key, block_size) # Generating the key words
+    print("The original keywords list is shown below")
+    print(keywords_list)
+
+
     return
 
 
@@ -88,7 +96,7 @@ def main():
         # ----------------------------------------------------------------------
         text_to_encrypt = raw_input("Text to encrypt : ")
         bits_to_encrypt = tobits(text_to_encrypt)
-        print("Bits to encrypt : {0}".format(bits_to_encrypt))
+        #print("Bits to encrypt : {0}".format(bits_to_encrypt))
         print("Text to encrypt size : {0} bits".format(len(bits_to_encrypt)))
         # ----------------------------------------------------------------------
 
@@ -96,7 +104,7 @@ def main():
         # ----------------------------------------------------------------------
         key = raw_input("Key : ")
         key_bits = tobits(key)
-        print("Key bits : {0}".format(key_bits))
+        #print("Key bits : {0}".format(key_bits))
         print("Key size : {0}".format(len(key_bits)))
         # ----------------------------------------------------------------------
 
@@ -107,7 +115,7 @@ def main():
             # Padding zeros, so we've got at least one block to encrypt
             while len(bits_to_encrypt) < block_size:
                 bits_to_encrypt.append(0)
-            print("New bits_to_encrypt : {0}".format(bits_to_encrypt))
+            #print("New bits_to_encrypt : {0}".format(bits_to_encrypt))
             print("New nb_of_bits_to_encrypt : {0}".format(len(bits_to_encrypt)))
         # ----------------------------------------------------------------------
 
@@ -120,19 +128,21 @@ def main():
             while len(key_bits) < block_size:
                 key_bits.append(key_bits[i])
                 i+=1
-            print("New key : {0}".format(key_bits))
+            #print("New key : {0}".format(key_bits))
             print("New key size : {0}".format(len(key_bits)))
         elif len(key_bits) > block_size:
             print("The key size ({0} bits) is greater than the block size ({1} bits)".format(len(key_bits), block_size))
             nb_of_bits_to_remove = len(key_bits) - block_size
             key_bits = key_bits[:len(key_bits)-nb_of_bits_to_remove]
-            print("Shortened key : {0}".format(key_bits))
+            #print("Shortened key : {0}".format(key_bits))
             print("Shortened key size : {0}".format(len(key_bits)))
         else:
             print("Wow, an exactly {0} bit long key, I'm impressed".format(len(key_bits)))
         # ----------------------------------------------------------------------
 
         # Now that the key size and the input size are OK, we may continue
+        print("[1] - key_bits = {0} ; bits_to_encrypt = {1} ; block_size = {2}".format(len(key_bits), len(bits_to_encrypt), block_size))
+        print("Key bits used : {0}".format(key_bits))
         threefish_encrypt(key_bits, bits_to_encrypt, block_size)
 
 if __name__ == "__main__":
