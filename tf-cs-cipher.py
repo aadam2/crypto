@@ -109,7 +109,7 @@ def threefish_key_schedule(key, block_size): # Generates the original keywords l
     N = nb_key_words
     print("[2] - N = {0}".format(N))
     print("[3] - keywords_list length = {0}".format(len(keywords_list)))
-    for i in range(20): # Browsing the rounds
+    for i in range(76): # Browsing the rounds
         for n in range(N-3): # Browsing the blocks
             round_list.append(keywords_list[(n + i) % (N + 1)])
         round_list.append(modular_addition(keywords_list[(N - 3 + i) % (N + 1)], tweaks[(i % 3)])) # N-3
@@ -154,11 +154,17 @@ def threefish_encrypt(key, msg_bits, block_size):
             print("Current round number : {0}".format(round_number))
             if (round_number == 0) or ((round_number % 4) == 0) or (round_number == 19):
                 key_used_times += 1
-                print("Round number {0} -> Should add key here".format(round_number))
+                print("Block {0} ; Round number {1} -> Should add key here".format(block_number, round_number))
                 print("Key now used {0} times".format(key_used_times))
+                # Dividing the block into words
+                block_words_list = divide_list(block, len(block)/64)
+                print("Current block : {0}".format(block))
+                print("Current block words list : {0}".format(block_words_list))
+                for block_word in block_words_list:
+                    print("With round number = {0} and block number = {1}".format(round_number, block_number))
+                    print("We will encrypt {0} with {1}".format(block_word, rounds_keywords_list[round_number][block_number]))
 
-
-
+        block_number += 1
 
     return
 
