@@ -25,7 +25,7 @@ def make_list_64_bits_long(bits_list):
         bits_list.insert(0, 0)
     return bits_list
 
-def divide_list(bits_list, num): # Used to generate equal size subkeys
+def divide_list(bits_list, num): # Used to generate equal size sublists, may for example be used to generate subkeys
     avg = len(bits_list) / float(num)
     out = []
     last = 0.0
@@ -105,7 +105,7 @@ def threefish_key_schedule(key, block_size): # Generates the original keywords l
     # keywords_list now contains the original keywords list (used for the first round)
     round_list = []
     rounds_keywords_list = [] # List of lists of lists, keywords list for each round (Round->Keywords_List->Keyword)
-    
+
     N = nb_key_words
     print("[2] - N = {0}".format(N))
     print("[3] - keywords_list length = {0}".format(len(keywords_list)))
@@ -129,6 +129,36 @@ def threefish_encrypt(key, msg_bits, block_size):
     print("rounds_keywords_list[0] : {0}".format(rounds_keywords_list[0])) # Keywords for round 1
     print("len(rounds_keywords_list) : {0}".format(len(rounds_keywords_list)))
     print("len(rounds_keywords_list[0]) : {0}".format(len(rounds_keywords_list[0])))
+    print("len(rounds_keywords_list[0][0]) : {0}".format(len(rounds_keywords_list[0][0])))
+
+    print("msg_bits : {0}".format(msg_bits))
+    print("len(msg_bits) : {0}".format(len(msg_bits)))
+
+    print("block_size : {0}".format(block_size))
+
+    nb_msg_blocks = len(msg_bits) / block_size
+    nb_msg_words = len(msg_bits) / 64
+
+    print("nb_msg_blocks : {0}".format(nb_msg_blocks))
+    print("nb_msg_words : {0}".format(nb_msg_words))
+    msg_blocks = divide_list(msg_bits, nb_msg_blocks)
+    print("msg_blocks : {0}".format(msg_blocks))
+
+
+    block_number = 0
+    round_number = 0
+    key_used_times = 0
+
+    for block in msg_blocks: # Browsing the blocks
+        for round_number in range(76): # Browsing the rounds
+            print("Current round number : {0}".format(round_number))
+            if (round_number == 0) or ((round_number % 4) == 0) or (round_number == 19):
+                key_used_times += 1
+                print("Round number {0} -> Should add key here".format(round_number))
+                print("Key now used {0} times".format(key_used_times))
+
+
+
 
     return
 
