@@ -1,6 +1,7 @@
+from bitstring import BitArray
+
 # Generic functions
 ################################################################################
-
 def tobits(s): # Converts characters into a list of bits
     result = []
     for c in s:
@@ -9,12 +10,20 @@ def tobits(s): # Converts characters into a list of bits
         result.extend([int(b) for b in bits])
     return result
 
-def frombits(bits): # Converts a list of bits into caracters
+def frombits(bits): # Converts a list of bits into characters
     chars = []
     for b in range(len(bits) / 8):
         byte = bits[b*8:(b+1)*8]
         chars.append(chr(int(''.join([str(bit) for bit in byte]), 2)))
     return ''.join(chars)
+
+def bitfield(n): # Converts integer to bit list
+    return [int(digit) for digit in bin(n)[2:]] # [2:] to chop off the "0b" part
+
+def make_list_64_bits_long(bits_list):
+    while len(bits_list) < 64:
+        bits_list.insert(0, 0)
+    return bits_list
 
 def divide_list(bits_list, num): # Used to generate equal size subkeys
     avg = len(bits_list) / float(num)
@@ -50,6 +59,22 @@ def xoring_list_of_lists(subkeys_list):
     #print("Last subkey (AFTER C XOR) : {0}".format(last_subkey))
     return last_subkey
 
+def modular_addition(list_A, list_B): # Takes lists of bits as input([1, 0, 0, 1] for example)
+    a = BitArray(list_A)
+    b = BitArray(list_B)
+
+    mod_sum = bin(int(a.bin, 2) + int(b.bin,2))
+    mod_sum = mod_sum[2:] # [2:] to chop off the "0b" part
+
+    mod_sum_list = []
+    for i in range(0, len(mod_sum)):
+        mod_sum_list.append(mod_sum[i])
+
+    if (len(mod_sum_list) > len(list_A)):
+        mod_sum_list.pop(0)
+
+    return mod_sum_list
+
 ################################################################################
 
 # Functions definitions
@@ -80,20 +105,20 @@ def threefish_key_schedule(key, block_size): # Generates the original keywords l
     # keywords_list now contains the original keywords list (used for the first round)
     round_list = []
     rounds_keywords_list = [] # List of lists of lists, keywords list for each round (Round->Keywords_List->Keyword)
-    # Doing the first round
-
+    
     N = nb_key_words
     print("[2] - N = {0}".format(N))
     print("[3] - keywords_list length = {0}".format(len(keywords_list)))
     for i in range(20): # Browsing the rounds
         for n in range(N-3): # Browsing the blocks
-            current_index = (n + i) % (N + 1)
-            print ("With i = {0} and n = {1}, we have current_index = {2}".format(i, n, current_index))
             round_list.append(keywords_list[(n + i) % (N + 1)])
-        print("[4] - round_list so far : {0}".format(round_list))
-        round_list.append(xoring_two_lists(keywords_list[(N - 3 + i) % (N + 1)], tweaks[(i % 3)])) # N-3
-        round_list.append(xoring_two_lists(keywords_list[(N - 2 + i) % (N + 1)], tweaks[((i + 1) % 3)])) # N-2
-        round_list.append(keywords_list[(N - 1 + i) % (N + 1)]) # TODO Do the correction modular addition here (with i). Anyway, N-1 here
+        round_list.append(modular_addition(keywords_list[(N - 3 + i) % (N + 1)], tweaks[(i % 3)])) # N-3
+        round_list.append(modular_addition(keywords_list[(N - 2 + i) % (N + 1)], tweaks[((i + 1) % 3)])) # N-2
+        # Convert i to bit array
+        i_bitlist = bitfield(i)
+        # Make it 64 bits long
+        i_bitlist = make_list_64_bits_long(i_bitlist)
+        round_list.append(modular_addition(keywords_list[(N - 1 + i) % (N + 1)], i_bitlist)) # N-1 here
         rounds_keywords_list.append(round_list)
 
     return rounds_keywords_list
