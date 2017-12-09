@@ -36,6 +36,10 @@ def divide_list(bits_list, num): # Used to generate equal size sublists, may for
 
     return out
 
+def merge_list_of_lists(l):
+    flat_list = [item for sublist in l for item in sublist]
+    return flat_list
+
 def xoring_two_lists(list_A, list_B):
     #print("[2] - XORing {0} and {1}".format(list_A, list_B))
     xored_list = []
@@ -70,10 +74,47 @@ def modular_addition(list_A, list_B): # Takes lists of bits as input([1, 0, 0, 1
     for i in range(0, len(mod_sum)):
         mod_sum_list.append(mod_sum[i])
 
-    if (len(mod_sum_list) > len(list_A)):
+    if len(mod_sum_list) > 64: # Removing the last element if necessary
         mod_sum_list.pop(0)
 
+    mod_sum_list = [int(x) for x in mod_sum_list] # Converting list elements to int
+
+    while len(mod_sum_list) < 64:
+        mod_sum_list.insert(0, 0)
+
     return mod_sum_list
+
+def offset_list(l, offset):
+    offsetted_list = []
+    for i in range(len(l)):
+        offsetted_list.append(l[(i + offset) % len(l)])
+    return offsetted_list
+
+def mix(block):
+    # Browsing the block, two words at a time, doing the mixing work
+    nb_of_words = len(block) / 64
+
+    block_words_list = divide_list(block, nb_of_words)
+
+    mixed_block = []
+    for i in range(0, nb_of_words - 1, 2):
+        m1 = block_words_list[i]
+        m2 = block_words_list[i+1]
+
+        # Offsetting m2
+        offsetted_m2 = offset_list(m2, 49)
+
+        # Doing the mixing stuff
+        mixed_m1 = modular_addition(m1, m2)
+        mixed_m2 = xoring_two_lists(mixed_m1, offsetted_m2)
+
+        # Appending the words
+        mixed_block.append(mixed_m1)
+        mixed_block.append(mixed_m2)
+
+    mixed_block = merge_list_of_lists(mixed_block) # To obtain a single list from a list of lists
+
+    return mixed_block
 
 ################################################################################
 
@@ -123,50 +164,53 @@ def threefish_key_schedule(key, block_size): # Generates the original keywords l
 
     return rounds_keywords_list
 
+
 def threefish_encrypt(key, msg_bits, block_size):
+
+    # rounds_keywords_list contains all round keys
     rounds_keywords_list = threefish_key_schedule(key, block_size) # Generating the key words
-
-    print("rounds_keywords_list[0] : {0}".format(rounds_keywords_list[0])) # Keywords for round 1
-    print("len(rounds_keywords_list) : {0}".format(len(rounds_keywords_list)))
-    print("len(rounds_keywords_list[0]) : {0}".format(len(rounds_keywords_list[0])))
-    print("len(rounds_keywords_list[0][0]) : {0}".format(len(rounds_keywords_list[0][0])))
-
-    print("msg_bits : {0}".format(msg_bits))
-    print("len(msg_bits) : {0}".format(len(msg_bits)))
-
-    print("block_size : {0}".format(block_size))
+    # rounds_keywords_list[0] : contains the key words list for round 0
+    # rounds_keywords_list[0][0] : contains the word 0 of the word list for round 0
 
     nb_msg_blocks = len(msg_bits) / block_size
-    nb_msg_words = len(msg_bits) / 64
-
-    print("nb_msg_blocks : {0}".format(nb_msg_blocks))
-    print("nb_msg_words : {0}".format(nb_msg_words))
     msg_blocks = divide_list(msg_bits, nb_msg_blocks)
-    print("msg_blocks : {0}".format(msg_blocks))
 
-
-    block_number = 0
     round_number = 0
+    block_number = 0
     key_used_times = 0
 
-    for block in msg_blocks: # Browsing the blocks
-        for round_number in range(76): # Browsing the rounds
-            print("Current round number : {0}".format(round_number))
-            if (round_number == 0) or ((round_number % 4) == 0) or (round_number == 19):
-                key_used_times += 1
-                print("Block {0} ; Round number {1} -> Should add key here".format(block_number, round_number))
-                print("Key now used {0} times".format(key_used_times))
-                # Dividing the block into words
-                block_words_list = divide_list(block, len(block)/64)
-                print("Current block : {0}".format(block))
-                print("Current block words list : {0}".format(block_words_list))
-                for block_word in block_words_list:
-                    print("With round number = {0} and block number = {1}".format(round_number, block_number))
-                    print("We will encrypt {0} with {1}".format(block_word, rounds_keywords_list[round_number][block_number]))
+    encrypted_msg_blocks = [] # May contain 1 or several blocks
 
+    for block in msg_blocks: # Browsing the blocks
+        encrypted_block = block
+        for round_number in range(76): # Browsing the rounds
+        #for round_number in range(1): # Browsing the rounds
+
+            # 1 - Adding the key if necessary
+            if (round_number == 0) or ((round_number % 4) == 0) or (round_number == 19): # Need to add key here
+                key_used_times += 1
+                # Dividing the block into words
+                block_words_list = divide_list(encrypted_block, len(encrypted_block)/64)
+                encrypted_block_words = []
+                for block_word in block_words_list: # Browsing block words
+                    encrypted_block_words.append(modular_addition(block_word, rounds_keywords_list[round_number][block_number]))
+                encrypted_block = merge_list_of_lists(encrypted_block_words)
+
+            # 2 - Mixing (Substitute)
+            encrypted_block = mix(encrypted_block)
+
+
+            # 3 - Permute
+            #encrypted_block = permute(encrypted_block)
+
+
+
+        encrypted_msg_blocks.append(encrypted_block)
         block_number += 1
 
-    return
+    encrypted_msg = merge_list_of_lists(encrypted_msg_blocks)
+
+    return encrypted_msg
 
 # Main function
 ################################################################################
@@ -230,7 +274,10 @@ def main():
 
         # Now that the key size and the input size are OK, we may continue
         print("[1] - key_bits = {0} ; bits_to_encrypt = {1} ; block_size = {2}".format(len(key_bits), len(bits_to_encrypt), block_size))
-        threefish_encrypt(key_bits, bits_to_encrypt, block_size)
+        encrypted_msg = threefish_encrypt(key_bits, bits_to_encrypt, block_size)
+
+        print("Clear message : {0}".format(bits_to_encrypt))
+        print("Final encrypted message : {0}".format(encrypted_msg))
 
 if __name__ == "__main__":
     main()
