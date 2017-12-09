@@ -1,7 +1,6 @@
 from bitstring import BitArray
 
 # Generic functions
-################################################################################
 def tobits(s): # Converts characters into a list of bits
     result = []
     for c in s:
@@ -41,26 +40,20 @@ def merge_list_of_lists(l):
     return flat_list
 
 def xoring_two_lists(list_A, list_B):
-    #print("[2] - XORing {0} and {1}".format(list_A, list_B))
     xored_list = []
     list_size = len(list_A)
     for i in range(list_size):
         xored_list.append(list_A[i] ^ list_B[i])
-    #print("[3] - XOR result : {0}".format(xored_list))
-    #print("####################################################################")
     return xored_list
 
 def xoring_list_of_lists(subkeys_list):
     nb_lists = len(subkeys_list)
     last_subkey = subkeys_list[0]
     for i in range(1, nb_lists):
-        print("Having i = {0}".format(i))
         last_subkey = xoring_two_lists(last_subkey,subkeys_list[i])
-    #print("Last subkey (without C yet) : {0}".format(last_subkey))
 
     C = [0, 0, 0, 1, 1, 0, 1, 1, 1, 1, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 0, 1, 1, 1, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 0, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 1, 1, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0]
     last_subkey = xoring_two_lists(last_subkey, C)
-    #print("Last subkey (AFTER C XOR) : {0}".format(last_subkey))
     return last_subkey
 
 def modular_addition(list_A, list_B): # Takes lists of bits as input([1, 0, 0, 1] for example)
@@ -93,7 +86,6 @@ def offset_list(l, offset):
 def mix(block):
     # Browsing the block, two words at a time, doing the mixing work
     nb_of_words = len(block) / 64
-
     block_words_list = divide_list(block, nb_of_words)
 
     mixed_block = []
@@ -116,10 +108,12 @@ def mix(block):
 
     return mixed_block
 
-################################################################################
+def permute(block):
+    # Reverses the order of the words that constitute the block (may change in the future)
+    return list(reversed(block))
+
 
 # Functions definitions
-################################################################################
 # ThreeFish related
 def threefish_key_schedule(key, block_size): # Generates the original keywords list (used for the first round)
 
@@ -143,9 +137,8 @@ def threefish_key_schedule(key, block_size): # Generates the original keywords l
     # Appending the last subkey to the key
     keywords_list.append(last_subkey)
 
-    # keywords_list now contains the original keywords list (used for the first round)
     round_list = []
-    rounds_keywords_list = [] # List of lists of lists, keywords list for each round (Round->Keywords_List->Keyword)
+    rounds_keywords_list = [] # List of lists of lists, keywords list for each round (Round -> Keywords_List -> Keyword)
 
     N = nb_key_words
     print("[2] - N = {0}".format(N))
@@ -184,7 +177,6 @@ def threefish_encrypt(key, msg_bits, block_size):
     for block in msg_blocks: # Browsing the blocks
         encrypted_block = block
         for round_number in range(76): # Browsing the rounds
-        #for round_number in range(1): # Browsing the rounds
 
             # 1 - Adding the key if necessary
             if (round_number == 0) or ((round_number % 4) == 0) or (round_number == 19): # Need to add key here
@@ -199,11 +191,8 @@ def threefish_encrypt(key, msg_bits, block_size):
             # 2 - Mixing (Substitute)
             encrypted_block = mix(encrypted_block)
 
-
             # 3 - Permute
-            #encrypted_block = permute(encrypted_block)
-
-
+            encrypted_block = permute(encrypted_block)
 
         encrypted_msg_blocks.append(encrypted_block)
         block_number += 1
@@ -212,9 +201,7 @@ def threefish_encrypt(key, msg_bits, block_size):
 
     return encrypted_msg
 
-# Main function
-################################################################################
-# Calling user defined functions
+
 def main():
     print("Select your encryption function")
     print("->1<- ThreeFish symetric encryption")
@@ -230,31 +217,24 @@ def main():
         block_size = input("Block size (256, 512 or 1024 bits) : ")
 
         # Text to encrypt
-        # ----------------------------------------------------------------------
         text_to_encrypt = raw_input("Text to encrypt : ")
         bits_to_encrypt = tobits(text_to_encrypt)
         print("Text to encrypt size : {0} bits".format(len(bits_to_encrypt)))
-        # ----------------------------------------------------------------------
 
         # Key used
-        # ----------------------------------------------------------------------
         key = raw_input("Key : ")
         key_bits = tobits(key)
         print("Key size : {0}".format(len(key_bits)))
-        # ----------------------------------------------------------------------
 
         # Checking the input size
-        # ----------------------------------------------------------------------
         if len(bits_to_encrypt) < block_size:
             print("The total number of bits ({0} bits) to encrypt is lower than the block size ({1} bits)".format(len(bits_to_encrypt), block_size))
             # Padding zeros, so we've got at least one block to encrypt
             while len(bits_to_encrypt) < block_size:
                 bits_to_encrypt.append(0)
             print("New nb_of_bits_to_encrypt : {0}".format(len(bits_to_encrypt)))
-        # ----------------------------------------------------------------------
 
         # Checking the key size - must be EXACTLY equal to the block size
-        # ----------------------------------------------------------------------
         if len(key_bits) < block_size:
             print("The key size ({0} bits) is lower than the block size ({1} bits)".format(len(key_bits), block_size))
             # Repeating the key bits until the list is as long as the block size
@@ -270,7 +250,6 @@ def main():
             print("Shortened key size : {0}".format(len(key_bits)))
         else:
             print("Wow, an exactly {0} bit long key, I'm impressed".format(len(key_bits)))
-        # ----------------------------------------------------------------------
 
         # Now that the key size and the input size are OK, we may continue
         print("[1] - key_bits = {0} ; bits_to_encrypt = {1} ; block_size = {2}".format(len(key_bits), len(bits_to_encrypt), block_size))
@@ -281,4 +260,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-################################################################################
