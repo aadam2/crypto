@@ -56,7 +56,7 @@ def xoring_list_of_lists(subkeys_list):
     last_subkey = xoring_two_lists(last_subkey, C)
     return last_subkey
 
-def modular_addition(list_A, list_B): # Takes lists of bits as input([1, 0, 0, 1] for example)
+def modular_addition(list_A, list_B): # Takes lists of bits as input([1, 0, 0, 1] for example), does the addtion mod 2^64
     a = BitArray(list_A)
     b = BitArray(list_B)
 
@@ -67,7 +67,7 @@ def modular_addition(list_A, list_B): # Takes lists of bits as input([1, 0, 0, 1
     for i in range(0, len(mod_sum)):
         mod_sum_list.append(mod_sum[i])
 
-    if len(mod_sum_list) > 64: # Removing the last element if necessary
+    if len(mod_sum_list) > len(list_A): # Removing the last element if necessary
         mod_sum_list.pop(0)
 
     mod_sum_list = [int(x) for x in mod_sum_list] # Converting list elements to int
@@ -77,11 +77,42 @@ def modular_addition(list_A, list_B): # Takes lists of bits as input([1, 0, 0, 1
 
     return mod_sum_list
 
-def offset_list(l, offset):
+def binary_sub(list_A, list_B): # Computes binary substraction ; list_A shall be greater than list_B
+    print("Substracting {0} from {1}".format(list_B, list_A))
+    a = BitArray(list_A)
+    b = BitArray(list_B)
+    bin_sub = bin(int(a.bin, 2) - int(b.bin, 2))
+    print("bin_sub : {0}".format(bin_sub))
+    bin_sub = bin_sub[2:] # [2:] to chop off the "0b" part
+    print("Chopped off bin_sub : {0}".format(bin_sub))
+
+    if (bin_sub[0] != 0) or (bin_sub[0] != 1):
+        bin_sub = bin_sub[1:] # To remove the potential b remaining
+
+    print("Cleaned bin_sub : {0}".format(bin_sub))
+
+    bin_sub_list = []
+    for i in range(0, len(bin_sub)):
+        bin_sub_list.append(bin_sub[i])
+
+    bin_sub_list = [int(x) for x in bin_sub_list] # Converting list elements into int
+
+    while len(bin_sub_list) < len(list_A): # Padding zeros at the beginning if necessary
+        bin_sub_list.insert(0, 0)
+
+    return bin_sub_list
+
+def offset_list(l, offset): # Offsets bits to the left
     offsetted_list = []
     for i in range(len(l)):
         offsetted_list.append(l[(i + offset) % len(l)])
     return offsetted_list
+
+def reverse_offset_list(l, offset): # Offsets bits to the right
+    reverse_offsetted_list = []
+    for i in range(len(l)):
+        reverse_offsetted_list.append(l[(i - offset) % len(l)])
+    return reverse_offsetted_list
 
 def mix(block):
     # Browsing the block, two words at a time, doing the mixing work
@@ -108,6 +139,31 @@ def mix(block):
 
     return mixed_block
 
+def reverse_mix(block):
+    # Browsing the block, two words at a time, doing the mixing work
+    nb_of_words = len(block) / 64
+    block_words_list = divide_list(block, nb_of_words)
+
+    retrieved_block = []
+    for i in range(0, nb_of_words - 1, 2):
+        mixed_m1 = block_words_list[i] # m1'
+        mixed_m2 = block_words_list[i+1] # m2'
+
+        # Retrieving m2
+        offsetted_m2 = xoring_two_lists(mixed_m1, mixed_m2)
+        m2 = reverse_offset_list(offsetted_m2, 49)
+
+        # Retrieving m1
+        m1 = binary_sub(mixed_m1, m2)
+
+        # Appending the retrieved words
+        retrieved_block.append(m1)
+        retrieved_block.append(m2)
+
+    retrieved_block = merge_list_of_lists(retrieved_block) # To obtain a single list from a list of lists
+
+    return retrieved_block
+
 def permute(block):
     # Reverses the order of the words that constitute the block (may change in the future)
     return list(reversed(block))
@@ -115,7 +171,7 @@ def permute(block):
 
 # Functions definitions
 # ThreeFish related
-def threefish_key_schedule(key, block_size): # Generates the original keywords list (used for the first round)
+def threefish_key_schedule(key, block_size): # Generates the original keywords list
 
     # Computing the three tweaks
     t0 = key[:64]# First 64 bits from the key
@@ -179,7 +235,7 @@ def threefish_encrypt(key, msg_bits, block_size):
         for round_number in range(76): # Browsing the rounds
 
             # 1 - Adding the key if necessary
-            if (round_number == 0) or ((round_number % 4) == 0) or (round_number == 19): # Need to add key here
+            if (round_number == 0) or ((round_number % 4) == 0) or (round_number == 75): # Need to add key here
                 key_used_times += 1
                 # Dividing the block into words
                 block_words_list = divide_list(encrypted_block, len(encrypted_block)/64)
@@ -201,6 +257,47 @@ def threefish_encrypt(key, msg_bits, block_size):
 
     return encrypted_msg
 
+def threefish_decrypt(key, msg_bits, block_size):
+    # rounds_keywords_list contains all round keys
+    rounds_keywords_list = threefish_key_schedule(key, block_size) # Generating the key words
+    # rounds_keywords_list[0] : contains the key words list for round 0
+    # rounds_keywords_list[0][0] : contains the word 0 of the word list for round 0
+
+    nb_msg_blocks = len(msg_bits) / block_size
+    msg_blocks = divide_list(msg_bits, nb_msg_blocks)
+
+    round_number = 0
+    block_number = 0
+    key_used_times = 0
+
+    decrypted_msg_blocks = [] # Will contain 1 or several blocks
+
+    for block in msg_blocks: # Browsing the blocks
+        decrypted_block = block
+        for round_number in range(75, -1, -1):
+
+            # 1 - Substracting the key if necessary (depending on the round number)
+            if (round_number == 0) or ((round_number % 4) == 0) or (round_number == 75): # Need to substract the key here
+                key_used_times += 1
+                # Dividing the block into words
+                block_words_list = divide_list(decrypted_block, len(decrypted_block)/64)
+                decrypted_block_words = []
+                for block_word in block_words_list: # Browsing the block words
+                    decrypted_block_words.append(binary_sub(block_word, rounds_keywords_list[round_number][block_number]))
+                decrypted_block = merge_list_of_lists(decrypted_block_words)
+
+            # 2 - Reverse permute (same function here)
+            decrypted_block = permute(decrypted_block)
+
+            # 3 - Undo mixing
+            decrypted_block = reverse_mix(decrypted_block)
+
+        decrypted_msg_blocks.append(decrypted_block)
+        block_number += 1
+
+    decrypted_msg = merge_list_of_lists(decrypted_msg_blocks)
+
+    return decrypted_msg
 
 def main():
     print("Select your encryption function")
@@ -255,8 +352,12 @@ def main():
         print("[1] - key_bits = {0} ; bits_to_encrypt = {1} ; block_size = {2}".format(len(key_bits), len(bits_to_encrypt), block_size))
         encrypted_msg = threefish_encrypt(key_bits, bits_to_encrypt, block_size)
 
+        decrypted_msg = threefish_decrypt(key_bits, encrypted_msg, block_size)
+
         print("Clear message : {0}".format(bits_to_encrypt))
-        print("Final encrypted message : {0}".format(encrypted_msg))
+        print("Encrypted message : {0}".format(encrypted_msg))
+        print("Decrypted message : {0}".format(decrypted_msg))
+
 
 if __name__ == "__main__":
     main()
