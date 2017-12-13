@@ -82,15 +82,12 @@ def binary_sub(list_A, list_B): # Computes binary substraction ; list_A shall be
     print("Substracting {0} from {1}".format(list_B, list_A))
     a = BitArray(list_A)
     b = BitArray(list_B)
+
     bin_sub = bin(int(a.bin, 2) - int(b.bin, 2))
-    print("bin_sub : {0}".format(bin_sub))
     bin_sub = bin_sub[2:] # [2:] to chop off the "0b" part
-    print("Chopped off bin_sub : {0}".format(bin_sub))
 
-    if (bin_sub[0] != 0) or (bin_sub[0] != 1):
+    if (bin_sub[0] == 'b'):
         bin_sub = bin_sub[1:] # To remove the potential b remaining
-
-    print("Cleaned bin_sub : {0}".format(bin_sub))
 
     bin_sub_list = []
     for i in range(0, len(bin_sub)):
@@ -122,8 +119,15 @@ def mix(block):
 
     mixed_block = []
     for i in range(0, nb_of_words - 1, 2):
+        print("Round {0}".format(i))
+
         m1 = block_words_list[i]
         m2 = block_words_list[i+1]
+
+        print("m1 : {0}".format(m1))
+        print("m2 : {0}".format(m2))
+        print("len(m1) : {0}".format(len(m1)))
+        print("len(m2) : {0}".format(len(m2)))
 
         # Offsetting m2
         offsetted_m2 = offset_list(m2, 49)
@@ -131,6 +135,11 @@ def mix(block):
         # Doing the mixing stuff
         mixed_m1 = modular_addition(m1, m2)
         mixed_m2 = xoring_two_lists(mixed_m1, offsetted_m2)
+
+        print("mixed_m1 : {0}".format(mixed_m1))
+        print("mixed_m2 : {0}".format(mixed_m2))
+        print("len(mixed_m1) : {0}".format(len(mixed_m1)))
+        print("len(mixed_m2) : {0}".format(len(mixed_m2)))
 
         # Appending the words
         mixed_block.append(mixed_m1)
@@ -147,8 +156,15 @@ def reverse_mix(block):
 
     retrieved_block = []
     for i in range(0, nb_of_words - 1, 2):
+        print("Reverse round {0}".format(i))
+
         mixed_m1 = block_words_list[i] # m1'
         mixed_m2 = block_words_list[i+1] # m2'
+
+        print("mixed_m1 : {0}".format(mixed_m1))
+        print("mixed_m2 : {0}".format(mixed_m2))
+        print("len(mixed_m1) : {0}".format(len(mixed_m1)))
+        print("len(mixed_m2) : {0}".format(len(mixed_m2)))
 
         # Retrieving m2
         offsetted_m2 = xoring_two_lists(mixed_m1, mixed_m2)
@@ -156,6 +172,11 @@ def reverse_mix(block):
 
         # Retrieving m1
         m1 = binary_sub(mixed_m1, m2)
+
+        print("m1 : {0}".format(m1))
+        print("m2 : {0}".format(m2))
+        print("len(m1) : {0}".format(len(m1)))
+        print("len(m2) : {0}".format(len(m2)))
 
         # Appending the retrieved words
         retrieved_block.append(m1)
