@@ -198,8 +198,6 @@ def threefish_key_schedule(key, block_size): # Generates the original keywords l
     rounds_keywords_list = [] # List of lists of lists, keywords list for each round (Round -> Keywords_List -> Keyword)
 
     N = nb_key_words
-    print("[2] - N = {0}".format(N))
-    print("[3] - keywords_list length = {0}".format(len(keywords_list)))
     for i in range(76): # Browsing the rounds
         for n in range(N-3): # Browsing the blocks
             round_list.append(keywords_list[(n + i) % (N + 1)])
@@ -243,7 +241,8 @@ def threefish_encrypt(key, msg_bits, block_size):
                 block_words_list = divide_list(encrypted_block, len(encrypted_block)/64)
                 encrypted_block_words = []
                 for block_word in block_words_list: # Browsing block words
-                    encrypted_block_words.append(modular_addition(block_word, rounds_keywords_list[round_number][block_number]))
+                    #print("Used to ENCRYPT : {0}".format(rounds_keywords_list[round_number][block_number]))
+                    encrypted_block_words.append(xoring_two_lists(block_word, rounds_keywords_list[round_number][block_number]))
                 encrypted_block = merge_list_of_lists(encrypted_block_words)
 
             # 2 - Mixing (Substitute)
@@ -277,24 +276,26 @@ def threefish_decrypt(key, msg_bits, block_size):
     for block in msg_blocks: # Browsing the blocks
         decrypted_block = block
         #for round_number in range(75, -1, -1):
-        for i in range(0):
+        for i in range(1):
             round_number = 75
 
-            # 1 - Substracting the key if necessary (depending on the round number)
+            # 1 - Reverse permute (same function here)
+            decrypted_block = permute(decrypted_block)
+
+            # 2 - Undo mixing
+            decrypted_block = reverse_mix(decrypted_block)
+
+            # 3 - Substracting the key if necessary (depending on the round number)
             if (round_number == 0) or ((round_number % 4) == 0) or (round_number == 75): # Need to substract the key here
                 key_used_times += 1
                 # Dividing the block into words
                 block_words_list = divide_list(decrypted_block, len(decrypted_block)/64)
                 decrypted_block_words = []
                 for block_word in block_words_list: # Browsing the block words
-                    decrypted_block_words.append(binary_sub(block_word, rounds_keywords_list[round_number][block_number]))
+                    #print("Used to DECRYPT : {0}".format(rounds_keywords_list[round_number][block_number]))
+                    decrypted_block_words.append(xoring_two_lists(block_word, rounds_keywords_list[round_number][block_number]))
                 decrypted_block = merge_list_of_lists(decrypted_block_words)
 
-            # 2 - Reverse permute (same function here)
-            decrypted_block = permute(decrypted_block)
-
-            # 3 - Undo mixing
-            decrypted_block = reverse_mix(decrypted_block)
 
         decrypted_msg_blocks.append(decrypted_block)
         block_number += 1
@@ -356,11 +357,11 @@ def main():
         print("[1] - key_bits = {0} ; bits_to_encrypt = {1} ; block_size = {2}".format(len(key_bits), len(bits_to_encrypt), block_size))
         encrypted_msg = threefish_encrypt(key_bits, bits_to_encrypt, block_size)
 
-        #decrypted_msg = threefish_decrypt(key_bits, encrypted_msg, block_size)
+        decrypted_msg = threefish_decrypt(key_bits, encrypted_msg, block_size)
 
         print("Clear message : {0}".format(bits_to_encrypt))
         print("Encrypted message : {0}".format(encrypted_msg))
-        #print("Decrypted message : {0}".format(decrypted_msg))
+        print("Decrypted message : {0}".format(decrypted_msg))
 
 
 if __name__ == "__main__":
