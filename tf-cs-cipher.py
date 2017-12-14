@@ -364,15 +364,12 @@ def main():
         # Checking the key size - must be EXACTLY equal to the block size
         if len(key_bits) < block_size:
             print("The key size ({0} bits) is lower than the block size ({1} bits)".format(len(key_bits), block_size))
-            print("Old key size : {0}".format(len(key_bits)))
-            print("Old key content : {0}".format(key_bits))
             # Repeating the key bits until the list is as long as the block size
             i = 0
             while len(key_bits) < block_size:
                 key_bits.append(key_bits[i])
                 i+=1
             print("New key size : {0}".format(len(key_bits)))
-            print("New key content : {0}".format(key_bits))
 
         # Now that the key size and the input size are ok, we may continue
         print("[1] - key_bits = {0} ; bits_to_encrypt = {1} ; block_size = {2}".format(len(key_bits), len(bits_to_encrypt), block_size))
@@ -382,8 +379,37 @@ def main():
 
         print("Clear message : {0}".format(bits_to_encrypt))
         print("Encrypted message : {0}".format(encrypted_msg))
+        enc_text = frombits(encrypted_msg)
+        print("Encrypted text : {0}".format(enc_text))
         print("Decrypted message : {0}".format(decrypted_msg))
+        dec_text = frombits(decrypted_msg)
+        print("Decrypted text : {0}".format(dec_text))
 
+    elif choice == 4:
+        # Block size
+        block_size = input("Block size (256, 512 or 1024 bits) : ")
+
+        # Key used
+        key = raw_input("Key : ")
+        key_hash = hashlib.md5() # Using md5 - most convenient output size for this purpose
+        key_hash.update(key)
+        print("Key hash : {0}".format(key_hash.hexdigest()))
+        print("Key hash : {0}".format(key_hash.hexdigest()))
+        key_bits = tobits(key_hash.hexdigest())
+        print("Key size : {0}".format(len(key_bits)))
+
+        # Checking the key size - must be EXACTLY equal to the block size
+        if len(key_bits) < block_size:
+            print("The key size ({0} bits) is lower than the block size ({1} bits)".format(len(key_bits), block_size))
+            # Repeating the key bits until the list is as long as the block size
+            i = 0
+            while len(key_bits) < block_size:
+                key_bits.append(key_bits[i])
+                i+=1
+            print("New key size : {0}".format(len(key_bits)))
+
+        encrypted_msg = [int(x) for x in input("Encrypted list : ").split()]
+        decrypted_msg = threefish_decrypt(key_bits, encrypted_msg, block_size)
 
 if __name__ == "__main__":
     main()
