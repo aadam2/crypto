@@ -385,6 +385,9 @@ def main():
         dec_text = frombits(decrypted_msg)
         print("Decrypted text : {0}".format(dec_text))
 
+    elif choice == 2:
+        # Cramer-Shoup encryption
+    
     elif choice == 4:
         # Block size
         block_size = input("Block size (256, 512 or 1024 bits) : ")
