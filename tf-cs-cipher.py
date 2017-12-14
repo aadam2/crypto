@@ -21,10 +21,6 @@ def frombits(bits): # Converts a list of bits into characters
 def open_file(filename, block_size): # Block size is given in bytes
     file_bits = []
     with open(filename, "rb") as binary_file:
-        # Read the whole file at once
-        # data = binary_file.read()
-        # print(data)
-
         i = 1
         # Seek position and read block_size bytes at the time
         file_size = os.stat(filename).st_size
@@ -63,6 +59,24 @@ def divide_list(bits_list, num): # Used to generate equal size sublists, may for
         last += avg
 
     return out
+
+def make_blocks(msg_bits, block_size):
+    current_cursor_position = 0
+    remaining_space = len(msg_bits)
+    msg_blocks = []
+    block = []
+
+    while remaining_space > block_size:
+        block = msg_bits[current_cursor_position:block_size]
+        msg_blocks.append(block)
+        remaining_space -= block_size
+        current_cursor_position += block_size
+
+    # Generating then appending the weird sized block
+    block = msg_bits[-remaining_space:]
+    msg_blocks.append(block)
+
+    return msg_blocks
 
 def merge_list_of_lists(l):
     flat_list = [item for sublist in l for item in sublist]
@@ -107,7 +121,6 @@ def modular_addition(list_A, list_B): # Takes lists of bits as input([1, 0, 0, 1
     return mod_sum_list
 
 def binary_sub(list_A, list_B): # Computes binary substraction ; list_A shall be greater than list_B
-    print("Substracting {0} from {1}".format(list_B, list_A))
     a = BitArray(list_A)
     b = BitArray(list_B)
 
@@ -147,15 +160,8 @@ def mix(block):
 
     mixed_block = []
     for i in range(0, nb_of_words - 1, 2):
-        print("Round {0}".format(i))
-
         m1 = block_words_list[i]
         m2 = block_words_list[i+1]
-
-        print("m1 : {0}".format(m1))
-        print("m2 : {0}".format(m2))
-        print("len(m1) : {0}".format(len(m1)))
-        print("len(m2) : {0}".format(len(m2)))
 
         # Offsetting m2
         offsetted_m2 = offset_list(m2, 49)
@@ -163,11 +169,6 @@ def mix(block):
         # Doing the mixing stuff
         mixed_m1 = modular_addition(m1, m2)
         mixed_m2 = xoring_two_lists(mixed_m1, offsetted_m2)
-
-        print("mixed_m1 : {0}".format(mixed_m1))
-        print("mixed_m2 : {0}".format(mixed_m2))
-        print("len(mixed_m1) : {0}".format(len(mixed_m1)))
-        print("len(mixed_m2) : {0}".format(len(mixed_m2)))
 
         # Appending the words
         mixed_block.append(mixed_m1)
@@ -184,15 +185,9 @@ def reverse_mix(block):
 
     retrieved_block = []
     for i in range(0, nb_of_words - 1, 2):
-        print("Reverse round {0}".format(i))
 
         mixed_m1 = block_words_list[i] # m1'
         mixed_m2 = block_words_list[i+1] # m2'
-
-        print("mixed_m1 : {0}".format(mixed_m1))
-        print("mixed_m2 : {0}".format(mixed_m2))
-        print("len(mixed_m1) : {0}".format(len(mixed_m1)))
-        print("len(mixed_m2) : {0}".format(len(mixed_m2)))
 
         # Retrieving m2
         offsetted_m2 = xoring_two_lists(mixed_m1, mixed_m2)
@@ -200,11 +195,6 @@ def reverse_mix(block):
 
         # Retrieving m1
         m1 = binary_sub(mixed_m1, m2)
-
-        print("m1 : {0}".format(m1))
-        print("m2 : {0}".format(m2))
-        print("len(m1) : {0}".format(len(m1)))
-        print("len(m2) : {0}".format(len(m2)))
 
         # Appending the retrieved words
         retrieved_block.append(m1)
@@ -268,8 +258,14 @@ def threefish_encrypt(key, msg_bits, block_size):
     # rounds_keywords_list[0] : contains the key words list for round 0
     # rounds_keywords_list[0][0] : contains the word 0 of the word list for round 0
 
-    nb_msg_blocks = len(msg_bits) / block_size
-    msg_blocks = divide_list(msg_bits, nb_msg_blocks)
+    # Computing nb_msg_blocks
+    if len(msg_bits) % block_size == 0:
+        nb_msg_blocks = len(msg_bits) / block_size
+        msg_blocks = divide_list(msg_bits, nb_msg_blocks)
+    else:
+        nb_msg_blocks = len(msg_bits) / block_size + 1
+        msg_blocks = make_blocks(msg_bits, block_size)
+        print("msg_blocks = {0}".format(msg_blocks))
 
     round_number = 0
     block_number = 0
@@ -279,6 +275,12 @@ def threefish_encrypt(key, msg_bits, block_size):
 
     for block in msg_blocks: # Browsing the blocks
         encrypted_block = block
+
+        while len(encrypted_block) < block_size:
+            encrypted_block.append(0)
+
+        print("Processed encrypted block length : {0}".format(len(encrypted_block)))
+
         #for round_number in range(76): # Browsing the rounds
         for round_number in range(1): # Browsing the rounds
 
@@ -364,7 +366,7 @@ def main():
     choice = input("Choice : ")
 
     print("Select the input type")
-    print("->1<- Raw text")
+    print("->1<- Text")
     print("->2<- File")
     subchoice = input("Choice : ")
 
@@ -376,14 +378,10 @@ def main():
         key = raw_input("Key : ")
         key_hash = hashlib.md5() # Using md5 - most convenient output size for this purpose
         key_hash.update(key)
-        print("Key hash : {0}".format(key_hash.hexdigest()))
-        print("Key hash : {0}".format(key_hash.hexdigest()))
         key_bits = tobits(key_hash.hexdigest())
-        print("Key size : {0}".format(len(key_bits)))
 
         # Checking the key size - must be EXACTLY equal to the block size
         if len(key_bits) < block_size:
-            print("The key size ({0} bits) is lower than the block size ({1} bits)".format(len(key_bits), block_size))
             # Repeating the key bits until the list is as long as the block size
             i = 0
             while len(key_bits) < block_size:
@@ -411,22 +409,46 @@ def main():
 
             decrypted_msg = threefish_decrypt(key_bits, encrypted_msg, block_size)
 
+            enc_text = frombits(encrypted_msg)
             print("Clear message : {0}".format(bits_to_encrypt))
             print("Encrypted message : {0}".format(encrypted_msg))
-            enc_text = frombits(encrypted_msg)
-            print("Encrypted text : {0}".format(enc_text))
             print("Decrypted message : {0}".format(decrypted_msg))
+
+
             dec_text = frombits(decrypted_msg)
+            print("Clear text : {0}".format(text_to_encrypt))
+            print("Encrypted text : {0}".format(enc_text))
             print("Decrypted text : {0}".format(dec_text))
 
         elif subchoice == 2:
             # File to encrypt
             file_to_encrypt = raw_input("File path : ")
-            file_bits = open_file(file_to_encrypt, block_size)
+            clear_file_bits = open_file(file_to_encrypt, block_size)
 
-            print("File bits length : {0}".format(len(file_bits)))
+            print("File bits length : {0}".format(len(clear_file_bits)))
 
+            # Checking the input size
+            if len(clear_file_bits) < block_size:
+                print("The total number of bits ({0} bits) to encrypt is lower than the block size ({1} bits)".format(len(clear_file_bits), block_size))
+                # Padding zeros, so we've got at least one block to encrypt
+                while len(clear_file_bits) < block_size:
+                    clear_file_bits.append(0)
+                print("New nb_of_bits_to_encrypt : {0}".format(len(clear_file_bits)))
 
+            print("Encrypting... please wait")
+            encrypted_file_bits = threefish_encrypt(key_bits, clear_file_bits, block_size)
+
+            print("Decrypting... please wait")
+            decrypted_file_bits = threefish_decrypt(key_bits, encrypted_file_bits, block_size)
+
+            print("Clear file bits length : {0}".format(len(clear_file_bits)))
+            print("Encrypted file bits length : {0}".format(len(encrypted_file_bits)))
+            print("Decrypted file bits length : {0}".format(len(decrypted_file_bits)))
+
+            if clear_file_bits == decrypted_file_bits:
+                print("[TRUE] Clear file bits = Decrypted files bits")
+            else:
+                print("[FALSE] :'(")
 
     elif choice == 4:
         # Block size
