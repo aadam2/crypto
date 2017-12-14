@@ -1,3 +1,4 @@
+import os
 from bitstring import BitArray
 import hashlib
 
@@ -16,6 +17,33 @@ def frombits(bits): # Converts a list of bits into characters
         byte = bits[b*8:(b+1)*8]
         chars.append(chr(int(''.join([str(bit) for bit in byte]), 2)))
     return ''.join(chars)
+
+def open_file(filename, block_size): # Block size is given in bytes
+    file_bits = []
+    with open(filename, "rb") as binary_file:
+        # Read the whole file at once
+        # data = binary_file.read()
+        # print(data)
+
+        i = 1
+        # Seek position and read block_size bytes at the time
+        file_size = os.stat(filename).st_size
+        binary_file.seek(0)
+        current_cursor_position = 0
+        while (current_cursor_position + block_size) < file_size :
+            bytes_block = binary_file.read(block_size)
+
+            bits = tobits(bytes_block)
+
+            file_bits.append(bits)
+
+            current_cursor_position += block_size
+            binary_file.seek(current_cursor_position)
+            i += 1
+
+    file_bits = merge_list_of_lists(file_bits)
+    return file_bits
+
 
 def bitfield(n): # Converts integer to bit list
     return [int(digit) for digit in bin(n)[2:]] # [2:] to chop off the "0b" part
@@ -233,7 +261,6 @@ def threefish_key_schedule(key, block_size): # Generates the original keywords l
 
     return rounds_keywords_list
 
-
 def threefish_encrypt(key, msg_bits, block_size):
 
     # rounds_keywords_list contains all round keys
@@ -335,14 +362,15 @@ def main():
     print("->6<- Verify a hash")
 
     choice = input("Choice : ")
+
+    print("Select the input type")
+    print("->1<- Raw text")
+    print("->2<- File")
+    subchoice = input("Choice : ")
+
     if choice == 1:
         # Block size
         block_size = input("Block size (256, 512 or 1024 bits) : ")
-
-        # Text to encrypt
-        text_to_encrypt = raw_input("Text to encrypt : ")
-        bits_to_encrypt = tobits(text_to_encrypt)
-        print("Text to encrypt size : {0} bits".format(len(bits_to_encrypt)))
 
         # Key used
         key = raw_input("Key : ")
@@ -352,14 +380,6 @@ def main():
         print("Key hash : {0}".format(key_hash.hexdigest()))
         key_bits = tobits(key_hash.hexdigest())
         print("Key size : {0}".format(len(key_bits)))
-
-        # Checking the input size
-        if len(bits_to_encrypt) < block_size:
-            print("The total number of bits ({0} bits) to encrypt is lower than the block size ({1} bits)".format(len(bits_to_encrypt), block_size))
-            # Padding zeros, so we've got at least one block to encrypt
-            while len(bits_to_encrypt) < block_size:
-                bits_to_encrypt.append(0)
-            print("New nb_of_bits_to_encrypt : {0}".format(len(bits_to_encrypt)))
 
         # Checking the key size - must be EXACTLY equal to the block size
         if len(key_bits) < block_size:
@@ -371,23 +391,43 @@ def main():
                 i+=1
             print("New key size : {0}".format(len(key_bits)))
 
-        # Now that the key size and the input size are ok, we may continue
-        print("[1] - key_bits = {0} ; bits_to_encrypt = {1} ; block_size = {2}".format(len(key_bits), len(bits_to_encrypt), block_size))
-        encrypted_msg = threefish_encrypt(key_bits, bits_to_encrypt, block_size)
+        if subchoice == 1:
+            # Text to encrypt
+            text_to_encrypt = raw_input("Text to encrypt : ")
+            bits_to_encrypt = tobits(text_to_encrypt)
+            print("Text to encrypt size : {0} bits".format(len(bits_to_encrypt)))
 
-        decrypted_msg = threefish_decrypt(key_bits, encrypted_msg, block_size)
+            # Checking the input size
+            if len(bits_to_encrypt) < block_size:
+                print("The total number of bits ({0} bits) to encrypt is lower than the block size ({1} bits)".format(len(bits_to_encrypt), block_size))
+                # Padding zeros, so we've got at least one block to encrypt
+                while len(bits_to_encrypt) < block_size:
+                    bits_to_encrypt.append(0)
+                print("New nb_of_bits_to_encrypt : {0}".format(len(bits_to_encrypt)))
 
-        print("Clear message : {0}".format(bits_to_encrypt))
-        print("Encrypted message : {0}".format(encrypted_msg))
-        enc_text = frombits(encrypted_msg)
-        print("Encrypted text : {0}".format(enc_text))
-        print("Decrypted message : {0}".format(decrypted_msg))
-        dec_text = frombits(decrypted_msg)
-        print("Decrypted text : {0}".format(dec_text))
+            # Now that the key size and the input size are ok, we may continue
+            print("[1] - key_bits = {0} ; bits_to_encrypt = {1} ; block_size = {2}".format(len(key_bits), len(bits_to_encrypt), block_size))
+            encrypted_msg = threefish_encrypt(key_bits, bits_to_encrypt, block_size)
 
-    elif choice == 2:
-        # Cramer-Shoup encryption
-    
+            decrypted_msg = threefish_decrypt(key_bits, encrypted_msg, block_size)
+
+            print("Clear message : {0}".format(bits_to_encrypt))
+            print("Encrypted message : {0}".format(encrypted_msg))
+            enc_text = frombits(encrypted_msg)
+            print("Encrypted text : {0}".format(enc_text))
+            print("Decrypted message : {0}".format(decrypted_msg))
+            dec_text = frombits(decrypted_msg)
+            print("Decrypted text : {0}".format(dec_text))
+
+        elif subchoice == 2:
+            # File to encrypt
+            file_to_encrypt = raw_input("File path : ")
+            file_bits = open_file(file_to_encrypt, block_size)
+
+            print("File bits length : {0}".format(len(file_bits)))
+
+
+
     elif choice == 4:
         # Block size
         block_size = input("Block size (256, 512 or 1024 bits) : ")
