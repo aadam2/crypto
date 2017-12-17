@@ -18,14 +18,13 @@ def frombits(bits): # Converts a list of bits into characters
         chars.append(chr(int(''.join([str(bit) for bit in byte]), 2)))
     return ''.join(chars)
 
-def contains(small, big): # Check if the elemets from the list "small" are contained in the listed "big"
+def contains(small, big): # Check if the elemets contained in the list "small" are also contained in the list "big"
     for i in xrange(len(big)-len(small)+1):
         for j in xrange(len(small)):
             if big[i+j] != small[j]:
                 break
         else:
             return True
-            #return i, i+len(small)
     return False
 
 def open_file(filename, block_size): # Block size is given in bytes
@@ -489,8 +488,13 @@ def main():
                 i+=1
             print("New key size : {0}".format(len(key_bits)))
 
-        encrypted_msg = [int(x) for x in input("Encrypted list : ").split()]
+
+        encrypted_msg = input("Encrypted list : ")
         decrypted_msg = threefish_decrypt(key_bits, encrypted_msg, block_size)
+        decrypted_txt = frombits(decrypted_msg)
+
+        print("Decrypted message bits : {0}".format(decrypted_msg))
+        print("Decrypted text : {0}".format(decrypted_txt))
 
 if __name__ == "__main__":
     main()
