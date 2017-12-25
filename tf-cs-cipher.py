@@ -49,6 +49,13 @@ def open_file(filename, block_size): # Block size is given in bytes
     file_bits = merge_list_of_lists(file_bits)
     return file_bits
 
+def write_bits_to_file(filename, bitlist):
+    enc_msg_str = ', '.join(map(str, bitlist))
+    with open(filename, 'w+') as f: # Create a file if it doesn't already exist
+        # Write to the file
+        f.write("[{0}]".format(enc_msg_str))
+        # Close the connection to the file
+        f.close()
 
 def bitfield(n): # Converts integer to bit list
     return [int(digit) for digit in bin(n)[2:]] # [2:] to chop off the "0b" part
@@ -395,7 +402,6 @@ def main():
             while len(key_bits) < block_size:
                 key_bits.append(key_bits[i])
                 i+=1
-            print("New key size : {0}".format(len(key_bits)))
 
         if subchoice == 1:
             # Text to encrypt
@@ -415,22 +421,20 @@ def main():
             print("[1] - key_bits = {0} ; bits_to_encrypt = {1} ; block_size = {2}".format(len(key_bits), len(bits_to_encrypt), block_size))
             encrypted_msg = threefish_encrypt(key_bits, bits_to_encrypt, block_size)
 
-            decrypted_msg = threefish_decrypt(key_bits, encrypted_msg, block_size)
+            #decrypted_msg = threefish_decrypt(key_bits, encrypted_msg, block_size)
 
             enc_text = frombits(encrypted_msg)
             print("Clear message : {0}".format(bits_to_encrypt))
             print("Encrypted message : {0}".format(encrypted_msg))
-            print("Decrypted message : {0}".format(decrypted_msg))
+            #print("Decrypted message : {0}".format(decrypted_msg))
 
-            dec_text = frombits(decrypted_msg)
+            #dec_text = frombits(decrypted_msg)
             print("Clear text : {0}".format(text_to_encrypt))
             print("Encrypted text : {0}".format(enc_text))
-            print("Decrypted text : {0}".format(dec_text))
 
-            if contains(bits_to_encrypt, decrypted_msg):
-                print("Messages are equal")
-            else:
-                print("Messages aren't equal :(")
+            # Now writing the encrypted message (encrypted_msg) to a new file for easier retrieving
+            write_bits_to_file("encrypted_text_output.txt", encrypted_msg)
+            print("Encryption written to encrypted_text_output.txt")
 
 
         elif subchoice == 2:
@@ -452,18 +456,25 @@ def main():
             print("Encrypting... please wait")
             encrypted_file_bits = threefish_encrypt(key_bits, clear_file_bits, block_size)
 
-            print("Decrypting... please wait")
-            decrypted_file_bits = threefish_decrypt(key_bits, encrypted_file_bits, block_size)
+            print("Encrypted file bits : {0}".format(encrypted_file_bits))
 
-            print("Clear file bits length : {0}".format(len(clear_file_bits)))
-            print("Encrypted file bits length : {0}".format(len(encrypted_file_bits)))
-            print("Decrypted file bits length : {0}".format(len(decrypted_file_bits)))
+            # Writing the encrypted bits to a new file for easier retrieving
+            write_bits_to_file("encrypted_file_output.txt", encrypted_file_bits)
+            print("Encryption written to encrypted_file_output.txt")
+
+            #print("Decrypting... please wait")
+            #decrypted_file_bits = threefish_decrypt(key_bits, encrypted_file_bits, block_size)
+
+            #print("Clear file bits length : {0}".format(len(clear_file_bits)))
+            #print("Encrypted file bits length : {0}".format(len(encrypted_file_bits)))
+
+            #print("Decrypted file bits length : {0}".format(len(decrypted_file_bits)))
 
             #if clear_file_bits == decrypted_file_bits:
-            if contains(clear_file_bits, decrypted_file_bits):
-                print("Files are similar")
-            else:
-                print("Files aren't similar :(")
+            #if contains(clear_file_bits, decrypted_file_bits):
+            #    print("Files are similar")
+            #else:
+            #    print("Files aren't similar :(")
 
     elif choice == 4:
         # Block size
@@ -473,21 +484,15 @@ def main():
         key = raw_input("Key : ")
         key_hash = hashlib.md5() # Using md5 - most convenient output size for this purpose
         key_hash.update(key)
-        print("Key hash : {0}".format(key_hash.hexdigest()))
-        print("Key hash : {0}".format(key_hash.hexdigest()))
         key_bits = tobits(key_hash.hexdigest())
-        print("Key size : {0}".format(len(key_bits)))
 
         # Checking the key size - must be EXACTLY equal to the block size
         if len(key_bits) < block_size:
-            print("The key size ({0} bits) is lower than the block size ({1} bits)".format(len(key_bits), block_size))
             # Repeating the key bits until the list is as long as the block size
             i = 0
             while len(key_bits) < block_size:
                 key_bits.append(key_bits[i])
                 i+=1
-            print("New key size : {0}".format(len(key_bits)))
-
 
         encrypted_msg = input("Encrypted list : ")
         decrypted_msg = threefish_decrypt(key_bits, encrypted_msg, block_size)
