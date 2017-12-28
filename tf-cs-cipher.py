@@ -1,6 +1,8 @@
 import os
 from bitstring import BitArray
 import hashlib
+import ast
+import time
 
 # Generic functions
 def tobits(s): # Converts characters into a list of bits
@@ -56,6 +58,20 @@ def write_bits_to_file(filename, bitlist):
         f.write("[{0}]".format(enc_msg_str))
         # Close the connection to the file
         f.close()
+
+def write_text_to_file(filename, text):
+    print("Text received : {0}".format(text))
+    with open(filename, 'w+') as f: # Create a file if it doesn't already exist
+        # Write to the file
+        f.write(text)
+        # Close the connection to the file
+        f.close()
+
+def read_file_content(filename):
+    with open(filename, 'r') as content_file:
+        content = content_file.read()
+    content_list = ast.literal_eval(content)
+    return content_list
 
 def bitfield(n): # Converts integer to bit list
     return [int(digit) for digit in bin(n)[2:]] # [2:] to chop off the "0b" part
@@ -433,8 +449,9 @@ def main():
             print("Encrypted text : {0}".format(enc_text))
 
             # Now writing the encrypted message (encrypted_msg) to a new file for easier retrieving
-            write_bits_to_file("encrypted_text_output.txt", encrypted_msg)
-            print("Encryption written to encrypted_text_output.txt")
+            filename_encrypted_text_output = "encrypted_text_"+repr(time.time())
+            write_bits_to_file(filename_encrypted_text_output, encrypted_msg)
+            print("Encryption written to {0}".format(filename_encrypted_text_output))
 
 
         elif subchoice == 2:
@@ -442,7 +459,7 @@ def main():
             file_to_encrypt = raw_input("File path : ")
             clear_file_bits = open_file(file_to_encrypt, block_size)
 
-            print("File bits : {0}".format(clear_file_bits))
+            #print("File bits : {0}".format(clear_file_bits))
             print("File bits length : {0}".format(len(clear_file_bits)))
 
             # Checking the input size
@@ -456,11 +473,12 @@ def main():
             print("Encrypting... please wait")
             encrypted_file_bits = threefish_encrypt(key_bits, clear_file_bits, block_size)
 
-            print("Encrypted file bits : {0}".format(encrypted_file_bits))
+            #print("Encrypted file bits : {0}".format(encrypted_file_bits))
 
             # Writing the encrypted bits to a new file for easier retrieving
-            write_bits_to_file("encrypted_file_output.txt", encrypted_file_bits)
-            print("Encryption written to encrypted_file_output.txt")
+            filename_encrypted_file_output = "encrypted_file_"+repr(time.time())
+            write_bits_to_file(filename_encrypted_file_output, encrypted_file_bits)
+            print("Encryption written to {0}".format(filename_encrypted_file_output))
 
             #print("Decrypting... please wait")
             #decrypted_file_bits = threefish_decrypt(key_bits, encrypted_file_bits, block_size)
@@ -494,12 +512,25 @@ def main():
                 key_bits.append(key_bits[i])
                 i+=1
 
-        encrypted_msg = input("Encrypted list : ")
-        decrypted_msg = threefish_decrypt(key_bits, encrypted_msg, block_size)
-        decrypted_txt = frombits(decrypted_msg)
+        if subchoice == 1:
+            encrypted_msg = input("Encrypted list : ")
+            decrypted_msg = threefish_decrypt(key_bits, encrypted_msg, block_size)
+            decrypted_txt = frombits(decrypted_msg)
 
-        print("Decrypted message bits : {0}".format(decrypted_msg))
-        print("Decrypted text : {0}".format(decrypted_txt))
+            print("Decrypted message bits : {0}".format(decrypted_msg))
+            print("Decrypted text : {0}".format(decrypted_txt))
+        elif subchoice == 2:
+            encrypted_filename = raw_input("File path : ")
+            encrypted_msg = read_file_content(encrypted_filename)
+            print("Decrypting... please wait")
+            decrypted_msg = threefish_decrypt(key_bits, encrypted_msg, block_size)
+            decrypted_txt = frombits(decrypted_msg)
+
+            print("Decrypted text : {0}".format(decrypted_txt))
+
+            write_text_to_file(encrypted_filename+"_decrypted", decrypted_txt)
+
+            print("Decrypted text written to {0}_decrypted".format(encrypted_filename))
 
 if __name__ == "__main__":
     main()
