@@ -35,13 +35,10 @@ def open_file(filename, block_size): # Block size is given in bytes
         i = 1
         # Seek position and read block_size bytes at the time
         file_size = os.stat(filename).st_size
-        print("File size os : {0}".format(file_size))
-        print("Block size : {0}".format(block_size))
         binary_file.seek(0)
         current_cursor_position = 0
         while (current_cursor_position + block_size) < file_size :
             bytes_block = binary_file.read(block_size)
-            print("Current bytes_block [{0}] : {1}".format(i, bytes_block))
 
             # Adding the bits
             bits = tobits(bytes_block)
@@ -50,12 +47,11 @@ def open_file(filename, block_size): # Block size is given in bytes
             current_cursor_position += block_size
             binary_file.seek(current_cursor_position)
             i += 1
-            #if (current_cursor_position + block_size) >= file_size :
-            #    bytes_block = binary_file.read(file_size%block_size) # Reading the remaining characters
-            #    print("Last pseudo-block [{0}] : {1}".format(i, bytes_block))
+            if (current_cursor_position + block_size) >= file_size :
+                bytes_block = binary_file.read(file_size%block_size) # Reading the remaining characters
                 # Adding the last bits
-            #    bits = tobits(bytes_block)
-            #    file_bits.append(bits)
+                bits = tobits(bytes_block)
+                file_bits.append(bits)
 
         print("Done.")
 
@@ -68,8 +64,6 @@ def alt_open_file(filename, block_size): # Opens all the file at once
         i = 1
         # Seek position and read block_size bytes at the time
         file_size = os.stat(filename).st_size
-        print("File size os : {0}".format(file_size))
-        print("Block size : {0}".format(block_size))
         binary_file.seek(0)
         current_cursor_position = 0
 
@@ -79,7 +73,6 @@ def alt_open_file(filename, block_size): # Opens all the file at once
         bits = tobits(bytes_block)
         file_bits.append(bits)
 
-        print("Done.")
 
     file_bits = merge_list_of_lists(file_bits)
     return file_bits
@@ -93,7 +86,6 @@ def write_bits_to_file(filename, bitlist):
         f.close()
 
 def write_text_to_file(filename, text):
-    print("Text received : {0}".format(text))
     with open(filename, 'w+') as f: # Create a file if it doesn't already exist
         # Write to the file
         f.write(text)
@@ -125,23 +117,17 @@ def divide_list(bits_list, num): # Used to generate equal size sublists, may for
 
     return out
 
-def make_blocks(msg_bits, block_size):
-    current_cursor_position = 0
-    remaining_space = len(msg_bits)
-    msg_blocks = []
-    block = []
-
-    while remaining_space > block_size:
-        block = msg_bits[current_cursor_position:block_size]
-        msg_blocks.append(block)
-        remaining_space -= block_size
-        current_cursor_position += block_size
-
-    # Generating then appending the weird sized block
-    block = msg_bits[-remaining_space:]
-    msg_blocks.append(block)
-
-    return msg_blocks
+def alt_divide_list(bits_list, num, block_size): # Used to generate equal size sublists, may for example be used to generate subkeys
+    # Completing as necessary
+    while (len(bits_list) % block_size) != 0:
+        bits_list.append(0)
+    avg = len(bits_list) / float(num)
+    out = []
+    last = 0.0
+    while last < len(bits_list):
+        out.append(bits_list[int(last):int(last + avg)])
+        last += avg
+    return out
 
 def merge_list_of_lists(l):
     flat_list = [item for sublist in l for item in sublist]
@@ -326,7 +312,6 @@ def threefish_key_schedule(key, block_size): # Generates the original keywords l
     return rounds_keywords_list
 
 def threefish_encrypt(key, msg_bits, block_size):
-
     # rounds_keywords_list contains all round keys
     rounds_keywords_list = threefish_key_schedule(key, block_size) # Generating the key words
     # rounds_keywords_list[0] : contains the key words list for round 0
@@ -338,7 +323,8 @@ def threefish_encrypt(key, msg_bits, block_size):
         msg_blocks = divide_list(msg_bits, nb_msg_blocks)
     else:
         nb_msg_blocks = len(msg_bits) / block_size + 1
-        msg_blocks = make_blocks(msg_bits, block_size)
+        msg_blocks = alt_divide_list(msg_bits, nb_msg_blocks, block_size)
+
 
     round_number = 0
     block_number = 0
@@ -437,7 +423,7 @@ def cbc_threefish_encrypt(key, msg_bits, block_size): # CBC encryption mode
         msg_blocks = divide_list(msg_bits, nb_msg_blocks)
     else:
         nb_msg_blocks = len(msg_bits) / block_size + 1
-        msg_blocks = make_blocks(msg_bits, block_size)
+        msg_blocks = alt_divide_list(msg_bits, nb_msg_blocks, block_size)
 
     round_number = 0
     block_number = 0
@@ -626,12 +612,6 @@ def main():
             clear_file_bits = open_file(file_to_encrypt, block_size)
 
             original_file_msg = frombits(clear_file_bits)
-
-            print("original_file_msg : {0}".format(original_file_msg))
-
-            #print("File bits : {0}".format(clear_file_bits))
-            print("File bits length : {0}".format(len(clear_file_bits)))
-            print("File message length : {0}".format(len(original_file_msg)))
 
             # Checking the input size
             if len(clear_file_bits) < block_size:
