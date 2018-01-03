@@ -35,18 +35,51 @@ def open_file(filename, block_size): # Block size is given in bytes
         i = 1
         # Seek position and read block_size bytes at the time
         file_size = os.stat(filename).st_size
+        print("File size os : {0}".format(file_size))
+        print("Block size : {0}".format(block_size))
         binary_file.seek(0)
         current_cursor_position = 0
         while (current_cursor_position + block_size) < file_size :
             bytes_block = binary_file.read(block_size)
+            print("Current bytes_block [{0}] : {1}".format(i, bytes_block))
 
+            # Adding the bits
             bits = tobits(bytes_block)
-
             file_bits.append(bits)
 
             current_cursor_position += block_size
             binary_file.seek(current_cursor_position)
             i += 1
+            #if (current_cursor_position + block_size) >= file_size :
+            #    bytes_block = binary_file.read(file_size%block_size) # Reading the remaining characters
+            #    print("Last pseudo-block [{0}] : {1}".format(i, bytes_block))
+                # Adding the last bits
+            #    bits = tobits(bytes_block)
+            #    file_bits.append(bits)
+
+        print("Done.")
+
+    file_bits = merge_list_of_lists(file_bits)
+    return file_bits
+
+def alt_open_file(filename, block_size): # Opens all the file at once
+    file_bits = []
+    with open(filename, "rb") as binary_file:
+        i = 1
+        # Seek position and read block_size bytes at the time
+        file_size = os.stat(filename).st_size
+        print("File size os : {0}".format(file_size))
+        print("Block size : {0}".format(block_size))
+        binary_file.seek(0)
+        current_cursor_position = 0
+
+        bytes_block = binary_file.read(file_size)
+
+        # Adding the bits
+        bits = tobits(bytes_block)
+        file_bits.append(bits)
+
+        print("Done.")
 
     file_bits = merge_list_of_lists(file_bits)
     return file_bits
@@ -120,6 +153,12 @@ def xoring_two_lists(list_A, list_B):
     for i in range(list_size):
         xored_list.append(list_A[i] ^ list_B[i])
     return xored_list
+
+def generate_initialization_vector(size):
+    iv = []
+    for i in range(size):
+        iv.append(1)
+    return iv
 
 def xoring_list_of_lists(subkeys_list):
     nb_lists = len(subkeys_list)
@@ -338,7 +377,7 @@ def threefish_encrypt(key, msg_bits, block_size):
 
     encrypted_msg = merge_list_of_lists(encrypted_msg_blocks)
 
-    return encrypted_msg
+    return encrypted_msg # Regular ECB encryption mode
 
 def threefish_decrypt(key, msg_bits, block_size):
     # rounds_keywords_list contains all round keys
@@ -383,7 +422,123 @@ def threefish_decrypt(key, msg_bits, block_size):
 
     decrypted_msg = merge_list_of_lists(decrypted_msg_blocks)
 
-    return decrypted_msg
+    return decrypted_msg # Regular ECB decryption mode
+
+def cbc_threefish_encrypt(key, msg_bits, block_size): # CBC encryption mode
+
+    # rounds_keywords_list contains the keys for all the rounds
+    rounds_keywords_list = threefish_key_schedule(key, block_size) # Generating the key words
+    # rounds_keywords_list[0] : contains the key words list for round 0
+    # rounds_keywords_list[0][0] : contains the word 0 of the word list for round 0
+
+     # Computing nb_msg_blocks
+    if len(msg_bits) % block_size == 0:
+        nb_msg_blocks = len(msg_bits) / block_size
+        msg_blocks = divide_list(msg_bits, nb_msg_blocks)
+    else:
+        nb_msg_blocks = len(msg_bits) / block_size + 1
+        msg_blocks = make_blocks(msg_bits, block_size)
+
+    round_number = 0
+    block_number = 0
+    key_used_times = 0
+
+    encrypted_msg_blocks = [] # May contain 1 or several blocks
+
+    initialization_vector = generate_initialization_vector(block_size)
+    previous_encrypted_block = initialization_vector
+
+    for block in msg_blocks: # Browsing the blocks
+        encrypted_block = block
+
+        while len(encrypted_block) < block_size:
+            encrypted_block.append(0)
+
+
+        # Xoring with the previous encrypted block
+        encrypted_block = xoring_two_lists(encrypted_block, previous_encrypted_block)
+
+        # Doing the Threefish encryption itself
+        for round_number in range(76): # Browsing the rounds
+        #for round_number in range (1): # Browsing the rounds
+
+            # 1 - Adding the key if necessary
+            if (round_number == 0) or ((round_number % 4) == 0) or (round_number == 75): # Need to add key here
+                key_used_times += 1
+                # Dividing the block into words
+                block_words_list = divide_list(encrypted_block, len(encrypted_block)/64)
+                encrypted_block_words = []
+                for block_word in block_words_list: # Browsing block words
+                    #print("Used to ENCRYPT : {0}".format(rounds_keywords_list[round_number][block_number]))
+                    encrypted_block_words.append(xoring_two_lists(block_word, rounds_keywords_list[round_number][block_number]))
+                encrypted_block = merge_list_of_lists(encrypted_block_words)
+
+            # 2 - Mixing (Substitute)
+            encrypted_block = mix(encrypted_block)
+
+            # 3 - Permute
+            encrypted_block = permute(encrypted_block)
+
+        encrypted_msg_blocks.append(encrypted_block)
+        block_number += 1
+
+    encrypted_msg = merge_list_of_lists(encrypted_msg_blocks)
+
+    return encrypted_msg
+
+def cbc_threefish_decrypt(key, msg_bits, block_size): # CBC decryption mode
+    # rounds_keywords_list contains all round keys
+    rounds_keywords_list = threefish_key_schedule(key, block_size) # Generating the key words
+    # rounds_keywords_list[0] : contains the key words list for round 0
+    # rounds_keywords_list[0][0] : contains the word 0 of the word list for round 0
+
+    nb_msg_blocks = len(msg_bits) / block_size
+    msg_blocks = divide_list(msg_bits, nb_msg_blocks)
+
+    round_number = 0
+    block_number = 0
+    key_used_times = 0
+
+    decrypted_msg_blocks = [] # Will contain 1 or several blocks
+
+    # Generating the initialization vector
+    initialization_vector = generate_initialization_vector(block_size)
+    previous_encrypted_block = initialization_vector
+
+    for block in msg_blocks: # Browsing the blocks
+        decrypted_block = block
+        for round_number in range(75, -1, -1):
+        #for i in range(1):
+            #round_number = 75
+
+            # 1 - Reverse permute (same function here)
+            decrypted_block = permute(decrypted_block)
+
+            # 2 - Undo mixing
+            decrypted_block = reverse_mix(decrypted_block)
+
+            # 3 - Substracting the key if necessary (depending on the round number)
+            if (round_number == 0) or ((round_number % 4) == 0) or (round_number == 75): # Need to substract the key here
+                key_used_times += 1
+                # Dividing the block into words
+                block_words_list = divide_list(decrypted_block, len(decrypted_block)/64)
+                decrypted_block_words = []
+                for block_word in block_words_list: # Browsing the block words
+                    #print("Used to DECRYPT : {0}".format(rounds_keywords_list[round_number][block_number]))
+                    decrypted_block_words.append(xoring_two_lists(block_word, rounds_keywords_list[round_number][block_number]))
+                decrypted_block = merge_list_of_lists(decrypted_block_words)
+
+        # Xoring with the previous encrypted block
+        decrypted_block = xoring_two_lists(decrypted_block, previous_encrypted_block)
+
+        decrypted_msg_blocks.append(decrypted_block)
+        block_number += 1
+        previous_encrypted_block
+
+    decrypted_msg = merge_list_of_lists(decrypted_msg_blocks)
+
+    return decrypted_msg # Regular ECB decryption mode
+
 
 def main():
     print("Select your encryption function")
@@ -419,6 +574,12 @@ def main():
                 key_bits.append(key_bits[i])
                 i+=1
 
+        # Encryption mode : ECB or CBC
+        print("Select the encryption mode")
+        print("->1<- ECB")
+        print("->2<- CBC")
+        encmode = input("Choice : ")
+
         if subchoice == 1:
             # Text to encrypt
             text_to_encrypt = raw_input("Text to encrypt : ")
@@ -435,7 +596,12 @@ def main():
 
             # Now that the key size and the input size are ok, we may continue
             print("[1] - key_bits = {0} ; bits_to_encrypt = {1} ; block_size = {2}".format(len(key_bits), len(bits_to_encrypt), block_size))
-            encrypted_msg = threefish_encrypt(key_bits, bits_to_encrypt, block_size)
+
+
+            if encmode == 1:
+                encrypted_msg = threefish_encrypt(key_bits, bits_to_encrypt, block_size)
+            else:
+                encrypted_msg = cbc_threefish_encrypt(key_bits, bits_to_encrypt, block_size)
 
             #decrypted_msg = threefish_decrypt(key_bits, encrypted_msg, block_size)
 
@@ -459,8 +625,13 @@ def main():
             file_to_encrypt = raw_input("File path : ")
             clear_file_bits = open_file(file_to_encrypt, block_size)
 
+            original_file_msg = frombits(clear_file_bits)
+
+            print("original_file_msg : {0}".format(original_file_msg))
+
             #print("File bits : {0}".format(clear_file_bits))
             print("File bits length : {0}".format(len(clear_file_bits)))
+            print("File message length : {0}".format(len(original_file_msg)))
 
             # Checking the input size
             if len(clear_file_bits) < block_size:
@@ -470,8 +641,12 @@ def main():
                     clear_file_bits.append(0)
                 print("New nb_of_bits_to_encrypt : {0}".format(len(clear_file_bits)))
 
+            print("Number of bits to encrypt : {0}".format(len(clear_file_bits)))
             print("Encrypting... please wait")
-            encrypted_file_bits = threefish_encrypt(key_bits, clear_file_bits, block_size)
+            if encmode == 1:
+                encrypted_file_bits = threefish_encrypt(key_bits, clear_file_bits, block_size)
+            else:
+                encrypted_file_bits = cbc_threefish_encrypt(key_bits, clear_file_bits, block_size)
 
             #print("Encrypted file bits : {0}".format(encrypted_file_bits))
 
@@ -482,14 +657,17 @@ def main():
 
             #print("Decrypting... please wait")
             #decrypted_file_bits = threefish_decrypt(key_bits, encrypted_file_bits, block_size)
+            #decrypted_file_msg = frombits(decrypted_file_bits)
 
-            #print("Clear file bits length : {0}".format(len(clear_file_bits)))
-            #print("Encrypted file bits length : {0}".format(len(encrypted_file_bits)))
-
+            print("Clear file bits length : {0}".format(len(clear_file_bits)))
+            print("Encrypted file bits length : {0}".format(len(encrypted_file_bits)))
             #print("Decrypted file bits length : {0}".format(len(decrypted_file_bits)))
 
+
+            #print("Decrypted file message : {0}".format(decrypted_file_msg))
+
             #if clear_file_bits == decrypted_file_bits:
-            #if contains(clear_file_bits, decrypted_file_bits):
+            #if (clear_file_bits, decrypted_file_bits):
             #    print("Files are similar")
             #else:
             #    print("Files aren't similar :(")
@@ -512,9 +690,19 @@ def main():
                 key_bits.append(key_bits[i])
                 i+=1
 
+        # Encryption mode : ECB or CBC
+        print("Select the encryption mode")
+        print("->1<- ECB")
+        print("->2<- CBC")
+        encmode = input("Choice : ")
+
         if subchoice == 1:
             encrypted_msg = input("Encrypted list : ")
-            decrypted_msg = threefish_decrypt(key_bits, encrypted_msg, block_size)
+            if encmode == 1:
+                decrypted_msg = threefish_decrypt(key_bits, encrypted_msg, block_size)
+            else:
+                decrypted_msg = cbc_threefish_decrypt(key_bits, encrypted_msg, block_size)
+
             decrypted_txt = frombits(decrypted_msg)
 
             print("Decrypted message bits : {0}".format(decrypted_msg))
@@ -522,8 +710,14 @@ def main():
         elif subchoice == 2:
             encrypted_filename = raw_input("File path : ")
             encrypted_msg = read_file_content(encrypted_filename)
+            print("Number of bits to decrypt : {0}".format(len(encrypted_msg)))
             print("Decrypting... please wait")
-            decrypted_msg = threefish_decrypt(key_bits, encrypted_msg, block_size)
+            if encmode == 1:
+                decrypted_msg = threefish_decrypt(key_bits, encrypted_msg, block_size)
+            else:
+                decrypted_msg = cbc_threefish_decrypt(key_bits, encrypted_msg, block_size)
+
+            print("Number of bits decrypted : {0}".format(len(decrypted_msg)))
             decrypted_txt = frombits(decrypted_msg)
 
             print("Decrypted text : {0}".format(decrypted_txt))
