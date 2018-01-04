@@ -1,8 +1,13 @@
+# -*-coding:utf-8 -*
+
 import os
 from bitstring import BitArray
 import hashlib
 import ast
 import time
+import random
+import pickle
+import codecs
 
 # Generic functions
 def tobits(s): # Converts characters into a list of bits
@@ -19,6 +24,662 @@ def frombits(bits): # Converts a list of bits into characters
         byte = bits[b*8:(b+1)*8]
         chars.append(chr(int(''.join([str(bit) for bit in byte]), 2)))
     return ''.join(chars)
+
+
+def egcd(a, b):
+    if a == 0:
+        return (b, 0, 1)
+    else:
+        g, y, x = egcd(b % a, a)
+        return (g, x - (b // a) * y, y)
+
+def modinv(a, m):
+    g, x, y = egcd(a, m)
+    if g != 1:
+        raise Exception('modular inverse does not exist')
+    else:
+        return x % m
+    
+#sauvegarde des clés, avec un pickle (dictionnaire)
+def storekeys(c,d,h,g1,g2,q,x1,x2,y1,y2,z,timestamp):
+    currentpath = getscriptpath
+    if not os.path.isdir(currentpath + "/cramershoup/"):
+        os.mkdir(currentpath + "/cramershoup")    
+    
+    if not os.path.isdir(currentpath + "/cramershoup/publickeys_cs"):
+        os.mkdir(currentpath + "/cramershoup/cypheredmsgs")
+    if not os.path.isdir(currentpath + "/cramershoup/privatekeys_cs"):
+        os.mkdir(currentpath + "/cramershoup/cypheredmsgs")    
+        
+    #Store public and private keys in two separate files, using current timestamp as an identifier
+    os.chdir(currentpath + "/cramershoup/publickeys_cs")
+    filename = "publickey_"+str(timestamp)+".pblk"
+    #print(filename)
+    key = {
+        "c": c,
+        "d": d,
+        "h": h,
+        "g1": g1,
+        "g2": g2,
+        "q": q
+        }
+    with open(filename,'wb') as fichier:
+        pickler = pickle.Pickler(fichier)
+        pickler.dump(key)
+    
+    
+    os.chdir(currentpath + "/cramershoup/privatekeys_cs")
+    filename = "privatekey_"+str(timestamp)+".prvk"
+    #print(filename)
+    key = {
+        "x1": x1,
+        "x2": x2,
+        "y1": y1,
+        "y2": y2,
+        "z": z
+        }
+    with open(filename,'wb') as fichier:
+        pickler = pickle.Pickler(fichier)
+        pickler.dump(key)
+
+
+
+#récupération de la clé publique avec le nom du fichier
+def restorepublickey(filename):
+    currentpath = getscriptpath()
+
+    os.chdir(currentpath + "/cramershoup/publickeys_cs")
+    listparam = []
+    with open(filename, 'rb') as key:
+        depickler = pickle.Unpickler(key)
+        key = depickler.load()
+        for value in key.values():
+            #print(value)
+            listparam.append(value)
+    return listparam    
+  
+
+# Write a number as a sum of powers of 2
+def decompose(e):
+    binaryList = []
+    powerList = []
+
+    q = 1 # Giving q a value, so it can bound the first time
+
+    while q != 0:
+        # Quotient and remainder
+        q = e / 2
+        r = e % 2
+
+        binaryList.append(r)
+
+        e = e / 2
+
+    # Now populating the power list
+    bitPos = 0
+    for bit in binaryList:
+        if bit == 1:
+            powerList.append(2**bitPos)
+        bitPos += 1
+
+    return powerList
+
+# Computing a^(e) mod m
+def computeModuleWithExpoBySquaring(a, e, m):
+    modList = []
+    currentPower = 1
+    actualPower = 1
+    currentMod = a
+    # First step : writing e as the sum of powers of 2
+    powerList = decompose(e)
+    maxPower = max(powerList)
+    while currentPower <= maxPower:
+        currentMod = currentMod ** actualPower % m
+        if currentPower in powerList:
+            modList.append(currentMod)
+        currentPower = currentPower * 2
+        actualPower = 2
+
+    listProduct=1
+    for mod in modList:
+        listProduct = listProduct*mod
+
+    return listProduct % m
+  
+def miller_rabin(n, k):
+    if n == 2:
+        
+        return True
+    if n%2 == 0:
+        return False
+    if not n & 1:
+      
+        return False
+
+    def check(a, s, d, n):
+        x = pow(a, d, n)
+        if x == 1:
+            return True
+        for i in range(s - 1):
+            if x == n - 1:
+                return True
+            x = pow(x, 2, n)
+        return x == n - 1
+
+    s = 0
+    d = n - 1
+
+    while d % 2 == 0:
+        
+        d >>= 1
+        s += 1
+
+    for i in range(k):
+    
+        a = random.randrange(2, n - 1)
+        
+        if not check(a, s, d, n):
+         
+            return False
+  
+    return True
+        
+
+def hashtxt(textmsg,filename):
+    
+    currentpath = getscriptpath()
+    if not os.path.isdir(currentpath + "/hashsGS15/"):
+        os.mkdir(currentpath + "/hashsGS15")     
+    stringencoded = bytes(codecs.encode(textmsg))
+    hashfinal = hashlib._hashlib.openssl_sha256(stringencoded).hexdigest()
+    
+    filenamefinal = "hash_"+filename+".hashgs15"
+    os.chdir(currentpath + "/hashsGS15")
+    filetosave = open(filenamefinal,'wt')
+    filetosave.write(hashfinal)
+    filetosave.close()
+    
+    return [hashfinal,filenamefinal]
+    
+    
+def hashfile(filepath):
+    currentpath = getscriptpath()
+    if not os.path.isdir(currentpath + "/hashsGS15"):
+        os.mkdir(currentpath + "/hashsGS15")    
+    splitpath = filepath.split("/")
+    filename = splitpath.pop()
+    
+    stringfile = ""
+    textfile = open(filepath,'rt')
+    for line in textfile:
+        stringfile = stringfile + line
+    textfile.close()
+            
+    stringencoded = bytes(codecs.encode(stringfile))
+    hashfinal = hashlib._hashlib.openssl_sha256(stringencoded).hexdigest()
+    
+    filenamefinal = "hash_"+filename+".hashgs15"
+    os.chdir(currentpath + "/hashsGS15")
+    filetosave = open(filenamefinal,'wt')
+    filetosave.write(hashfinal)
+    filetosave.close()
+    
+    return [hashfinal,filenamefinal]
+    
+            
+def verifhash_file(filepath, hashfiletocheck):
+    hashtocheck = hashfile(filepath)
+    hashtxt = ""
+    hashfile = open(hashfiletocheck,'rt')
+    for line in hashfile:
+        hashtxt = hashtxt + line
+    hashfile.close()
+    print(hashtocheck+"\n"+hashtxt)
+    return hashtocheck == hashtxt
+    
+def verifhash_txt(msgtocheck, hashfiletocheck):
+    hashtxt = ""
+    hashfile = open(hashfiletocheck,'rt')
+    for line in hashfile:
+        hashtxt = hashtxt + line
+    hashfile.close()
+    hashtocheck = hashlib._hashlib.openssl_sha256(stringencoded).hexdigest()
+    print(hashtocheck+"\n"+hashtxt)
+    return hashtocheck == hashtxt
+    
+    
+    
+#On récupère la clé privée de la même façon
+def restoreprivatekey(filename):
+    currentpath = getscriptpath()
+    os.chdir(currentpath + "/cramershoup/privatekeys_cs")
+    listparam = []
+    with open(filename, 'rb') as key:
+        depickler = pickle.Unpickler(key)
+        key = depickler.load()
+        for value in key.values():
+            #print(value)
+            listparam.append(value)
+    return listparam               
+       
+def cypherfile_cramershoup(filepath,key,timestamp):
+    filetexttocypher = ""
+    filetocypher = open(filepath,'rt')
+    filetexttocypher = filetocypher.read()
+    #for line in filetocypher:
+        #filetexttocypher = filetexttocypher + line + "\n"
+    filetocypher.close()
+  
+    print(filetexttocypher)
+    return cypher_cramershoup(filetexttocypher,key,timestamp)
+        
+
+#fonction de chiffrement, demandant le message, la clé publique et le timestamp. On pourra éventuellement insérer la génération des clés dans cette fonction.
+def cypher_cramershoup(msg,key,timestamp):
+    
+    #la clé est fournie grâce à la fonction keygen() qui renvoie un tableau contenant les données
+    #print("c = ",key[0])
+    #print("d = ",key[1])
+    #print("h = ",key[2])
+    #print("g1 = ",key[3])
+    #print("g2 = ",key[4])
+    #print("q = ",key[5])
+    
+    c = key[0]
+    d = key[1]
+    h = key[2]
+    g1 = key[3]
+    g2 = key[4]
+    q = key[5]
+    
+    k = random.randint(0,2**512-1)
+    #print("k = ",k)
+    kstatic = k
+    
+    u1 = computeModuleWithExpoBySquaring(g1,k,q)
+    u2 = computeModuleWithExpoBySquaring(g2,k,q)
+    hk = computeModuleWithExpoBySquaring(h,k,q)
+    
+    
+    
+    #On récupère les valeurs de u1 et u2 sous forme de chaîne hexadécimale, pour les réutiliser dans la fonction de hachage
+    bitstru1 = hex(u1)
+    bitstru2 = hex(u2)
+    stru1 = str(bitstru1)[2:]
+    stru2 = str(bitstru2)[2:]
+    
+    
+    
+    #print("u1 = ",u1)
+    #print("u2 = ",u2)
+    #print("h^k = ",hk)
+    
+    
+    #On sépare en blocs de 256 bits --> 32 caractères. Ainsi, le nombre correspondant au message sera au plus égal à 2^255 - 1, et on est sur qu'il sera dans Zq avec q un entier de 512 bits.
+    totallength = len(msg)
+    #print (totallength)
+    nbblocks = 0
+    if totallength%8 == 0:
+        nbblocks = totallength//32
+    else:
+        nbblocks = totallength//32 + 1
+    print(str(nbblocks) + "blocs")
+    listblocks=[]
+    for i in range(nbblocks):
+        blockarr = []
+        listblocks.append(blockarr)
+    for i in range(totallength):
+        chara = msg[i]
+        blocktofill = i//32
+        posinblock = i%32
+        print(chara+";"+str(blocktofill)+";"+str(posinblock))
+        listblocks[blocktofill].insert(posinblock, chara)
+    listcypheredblock10 = []
+    listverifhashs = []
+    for block in listblocks:
+        blockinbase10 = 0
+        #print(block)
+        blockarray = []
+        
+        #on convertit les caractères en binaire
+        for chara in block:
+            for bit in tobits(chara):
+                blockarray.append(bit)
+        #on récupère la valeur du nombre binaire ainsi formé
+        blockinbase10 = BitArray(blockarray)._getint()
+       
+        print("MESSAGE BLOCK = ",hex(blockinbase10))
+        e = hk*blockinbase10
+        
+        #print ("E = ",e)
+        bitstre = hex(e)
+        
+        print("CYPHEREDHEX = ", bitstre)
+        stre = str(bitstre)[2:]
+        
+        print("CYPHEREDMSG = ", stre)
+        
+        
+        listcypheredblock10.append(bitstre)
+        
+        #fonction de hachage qui servira à la vérification (c'est là que ça foire :/)
+        stringcyphered = bytes(codecs.encode(stre))
+        stringu1 = bytes(codecs.encode(stru1))
+        stringu2 = bytes(codecs.encode(stru2))
+        #print("STRINGCYPHERED = ",stringcyphered, " -- STRINGU1 = ",stringu1," -- STRINGU2 = ",stringu2)
+        
+        
+        hashmsg = hashlib._hashlib.openssl_sha256(stringcyphered+stringu1+stringu2).hexdigest()
+        alpha = int(hashmsg,16)
+        
+        #print("STRE = ",stre, "; STRU1 = ",stru1," ; STRU2 = ",stru2)
+        #print("\n ALPHA = ",alpha,"\n")
+        
+        expka = k*alpha % q
+        #print(c,";",k,";",q,";",d,";",alpha,";",q)
+        ck = computeModuleWithExpoBySquaring(c,k,q)
+        dk = computeModuleWithExpoBySquaring(d,k,q)
+        dkalpha = computeModuleWithExpoBySquaring(dk,alpha,q)
+        v = ck * dkalpha %q
+        
+       # print("v = ",v)
+        #print(hex(v))
+        strv = str(hex(v))[2:]
+        listverifhashs.append(strv)
+        #print("ck = ",computeModuleWithExpoBySquaring(c,k,q))
+        #print("dk = ",computeModuleWithExpoBySquaring(d,k,q))
+        dk = computeModuleWithExpoBySquaring(d,k,q)
+        #print("dkalpha = ",computeModuleWithExpoBySquaring(dk,alpha,q))        
+    stringtosavemsg = ""
+    stringtosavehash = ""
+    for strmsg in listcypheredblock10:
+        stringtosavemsg = stringtosavemsg + strmsg + "//"
+    for strhash in listverifhashs:
+        stringtosavehash = stringtosavehash + strhash + "//"
+        
+    #on sauvegarde grâce à la fonction savecypheredmsg() qui renvoie le nom du fichier
+    filename = savecypheredmsg(stru1,stru2,stringtosavemsg,stringtosavehash,timestamp)
+    
+   
+    return filename
+    
+        
+# Functions definitions
+def computeGCD(a, b):
+    if b == 0:
+        return a
+    return computeGCD(b, a % b)
+
+# Computing a^(-1) mod p
+def computeModInv(a, p):
+    if computeGCD(a, p) != 1:
+        raise Exception("Modular inverse does not exist")
+
+    originalP = p # Saving the orinal modulo
+
+    x0 = 1
+    x1 = 0
+    y0 = 0
+    y1 = 1
+
+    i = 0 # Debug
+
+    while p != 0:
+        i += 1
+        # Quotient and remainder
+        q = a / p
+        r = a % p
+
+        #print("q and r at round {0} : q = {1} and r = {2}".format(i, q, r))
+
+        # Computing GCD
+        a = p
+        p = r
+
+        if p != 0 :
+         #   print("#############################################")
+          #  print("All parameters at round {4} before calculations : x0 = {0}, x1 = {1}, y0 = {2}, y1 = {3}".format(x0, x1, y0, y1, i))
+            # Extented Euclid's algorithm X and Y
+            tempX = x1
+            x1 = x1 * q + x0
+            x0 = tempX # Updating for the potential next round
+            tempY = y1
+            y1 = y1 * q + y0
+            y0 = tempY # Updating for the potential next round
+          #  print("All parameters at round {4} after calculations : x0 = {0}, x1 = {1}, y0 = {2}, y1 = {3}".format(x0, x1, y0, y1, i))
+           # print("#############################################")
+
+   # print("All parameters at the end : x0 = {0}, x1 = {1}, y0 = {2}, y1 = {3}".format(x0, x1, y0, y1))
+
+    if (i%2 != 0):
+        x1 = -x1
+
+   # print("Computed modular inverse : {0}".format(x1))
+    if x1 < 0:
+        x1 = x1 % originalP
+        print("Modular inverse made positive : {0}".format(x1))
+
+    returnvalue = 0
+    
+    if x1-int(x1)>0.5:
+        returnvalue = int(x1+1)
+    else:
+        returnvalue = int(x1)
+    return returnvalue
+
+        
+  
+    
+def savecypheredmsg(u1,u2,cypheredblockstring,cypheredhashstring,timestamp):
+    currentpath = getscriptpath()
+    os.chdir(currentpath + "/cramershoup")
+    if not os.path.isdir(currentpath + "/cramershoup/cypheredmsgs"):
+        os.mkdir(currentpath + "/cramershoup/cypheredmsgs")
+    os.chdir(currentpath + "/cramershoup/cypheredmsgs")
+    filename = "cypheredmsg_"+str(timestamp)+".cymsg"
+    file = open(filename, "wt")
+    file.write(str(u1)+"\n")
+    file.write(str(u2)+"\n")
+    file.write(cypheredblockstring+"\n")
+    file.write(cypheredhashstring)
+    file.close()
+    return filename
+
+def decypher_cramershoup(msgfilename):
+    
+    currentpath = getscriptpath()
+    #On isole le timestamp pour retrouver les fichiers des clés
+    os.chdir(currentpath + "/cramershoup/cypheredmsgs")
+    timestampinter = msgfilename.split("_")
+    timestamp = timestampinter[1].split(".")[0]
+    filetoopen = open(msgfilename)
+    data = []
+    for line in filetoopen:
+         
+        data.append(line)
+    
+    
+    
+    u1 = data[0]
+    u2 = data[1]
+    e = data[2]
+    v = data[3]
+    
+    privatekeyname = "privatekey_"+timestamp+".prvk"
+    publickeyname = "publickey_"+timestamp+".pblk"   
+    
+   
+    
+    
+    #On récupère les clés
+    key = restoreprivatekey(privatekeyname)
+    keypb = restorepublickey(publickeyname)
+    
+    x1 = key[0]
+    x2 = key[1]
+    y1 = key[2]
+    y2 = key[3]
+    z = key[4]
+    
+    h = int(keypb[2])
+    g1 = int(keypb[3])
+    g2 = int(keypb[4])
+    
+    q = int(keypb[5])
+    
+    
+    
+    #on avait séparé les blocs dans le message stocké en ajoutant des //
+    arraye = e.split("//")
+    arraye.pop()
+    arrayv = v.split("//")
+    arrayv.pop()
+    
+    i = 0
+    
+    numberu1 = int(u1,16)
+    numberu2 = int(u2,16)
+    
+    numberx1 = int(x1)
+    numberx2 = int(x2)
+    
+    numbery1 = int(y1)
+    numbery2 = int(y2)
+    
+    #print("x1 = ",numberx1)
+    #print("x2 = ",numberx2)
+    #print("y1 = ",numbery1)
+    #print("y2 = ",numbery2)
+    #print("g1 = ",g1)
+    #print("g2 = ",g2)    
+    
+    numberz = int(z)
+    
+    stringu1 = bytes(codecs.encode(u1[:-1]))
+    stringu2 = bytes(codecs.encode(u2[:-1]))
+    
+    booleanverif = True
+    
+    for ei in arraye:
+        print("ei = ",ei)
+    for ei in arraye:
+        numbere = int(ei,16)
+        numberv = int(arrayv[i],16)
+        stringcyphered = bytes(codecs.encode(ei[2:]))
+        
+        #print("STRE = ",ei[2:], "; STRU1 = ",u1," ; STRU2 = ",u2)
+
+        #print("STRINGCYPHERED = ",stringcyphered, " -- STRINGU1 = ",stringu1," -- STRINGU2 = ",stringu2)
+        
+        #on calcule le hash pour chaque bloc et on vérifie qu'il est égal au hash stocké
+        hashmsg2 = hashlib._hashlib.openssl_sha256(stringcyphered+stringu1+stringu2).hexdigest()
+        alpha = int(hashmsg2,16)
+        
+       # print("\n ALPHA = ",alpha,"\n")
+        
+        verif2int = (computeModuleWithExpoBySquaring(numberu1,numbery1,q)*computeModuleWithExpoBySquaring(numberu2,numbery2,q))%q
+        verifpt1 = (computeModuleWithExpoBySquaring(numberu1,numberx1,q)*computeModuleWithExpoBySquaring(numberu2,numberx2,q))
+        verifpt2 = computeModuleWithExpoBySquaring(verif2int,alpha,q)
+       # print("VERIF PT1 = ",(computeModuleWithExpoBySquaring(numberu1,numberx1,q)*computeModuleWithExpoBySquaring(numberu2,numberx2,q)) % q)
+        #print("VERIF PT2 = ", computeModuleWithExpoBySquaring(verif2int,alpha,q))
+        
+        verif = (verifpt1 * verifpt2) %q
+       # print("verif = ",verif)
+        #print("numberv = ",numberv)
+        if verif != numberv: 
+            booleanverif = False
+            break
+        i+=1
+    
+    if not booleanverif:
+        #print("La vérification est fausse : déchiffrement annulé")
+        return("NULL")
+    else:
+        
+        #si le hash est valide : on déchiffre chaque bloc puis on retourne le tableau des blocs déchiffrés
+        arraymsg = []
+        u1z = computeModuleWithExpoBySquaring(numberu1,numberz,q)
+        print("u1z = ",u1z)
+        
+     
+        msgtotal = ""
+    
+        invu1z = modinv(u1z,q)
+        for ei in arraye:
+            msgblck = []
+            numbere = int(ei,16)
+            
+            print("HEX MSG = ",hex(numbere))
+            m = numbere*invu1z % q
+            
+            strm = str(hex(m))[2:]
+            
+            print("MESSAGE  = ",strm)
+            for i in range(len(strm)//2):
+                charinhex = strm[2*i]+strm[2*i+1]
+                character = chr(int(charinhex,16))
+                msgblck.append(character)
+            arraymsg.append(msgblck)
+            
+            print(msgblck)
+            for c in msgblck:
+                msgtotal = msgtotal + c
+            
+        return msgtotal
+    
+                
+            
+            
+            
+        
+        
+
+#Génération de la clé grâce au timestamp
+def keygen_cramershoup(timestamp):
+    publickeyarray = []
+    q = 0
+    while not miller_rabin(q,100):
+        q = random.randint(2**511,2**512-1)
+   # print("On travaille dans Z",q)
+    g1=0
+    g2=0
+    while not miller_rabin(g1,100):
+        g1 = random.randint(0,q-1)
+    while not miller_rabin(g2,100):
+        g2 = random.randint(0,q-1)
+   # print("Les générateurs sont ",g1," et ",g2)
+    x1 = random.randint(0,q-1)
+    x2 = random.randint(0,q-1)
+    y1 = random.randint(0,q-1)
+    y2 = random.randint(0,q-1)
+    z = random.randint(0,q-1)
+  #  print("x1 = ",x1)
+    #print("x2 = ",x2)
+    #print("y1 = ",y1)
+    #print("y2 = ",y2)
+    #print("g1 = ",g1)
+    #print("g2 = ",g2)
+    #print("z = ",z)
+    
+    c = (computeModuleWithExpoBySquaring(g1,x1,q)*computeModuleWithExpoBySquaring(g2,x2,q))%q
+    #print("c = ",c)
+    d = (computeModuleWithExpoBySquaring(g1,y1,q)*computeModuleWithExpoBySquaring(g2,y2,q))%q
+    #print("d = ",d)
+    h = computeModuleWithExpoBySquaring(g1,z,q)
+    #print("h = ",h)
+    
+    publickeyarray.append(c)
+    publickeyarray.append(d)
+    publickeyarray.append(h)
+    publickeyarray.append(g1)
+    publickeyarray.append(g2)
+    publickeyarray.append(q)
+    
+    storekeys(c,d,h,g1,g2,q,x1,x2,y1,y2,z,timestamp)
+    return publickeyarray
+    
+def gettimestamp():
+    return int(time.time())
 
 def contains(small, big): # Check if the elemets contained in the list "small" are also contained in the list "big"
     for i in xrange(len(big)-len(small)+1):
@@ -536,6 +1197,7 @@ def main():
     print("->6<- Verify a hash")
 
     choice = input("Choice : ")
+    
 
     print("Select the input type")
     print("->1<- Text")
@@ -652,6 +1314,37 @@ def main():
             #else:
             #    print("Files aren't similar :(")
 
+    elif choice == 2:
+        timestamp = gettimestamp()
+       
+        
+        if subchoice == 1:
+            text_to_encrypt = raw_input("Text to encrypt : ")
+            
+            key = keygen_cramershoup()
+            filename = cypher_cramershoup(text_to_encrypt,key,timestamp)
+            print("File saved to ",filename)
+        
+        elif subchoice == 2:
+            file_to_encrypt = raw_input("File path : ")
+            key = keygen(timestamp)
+            filename = cypherfile_cramershoup(file_to_encrypt,key,timestamp)
+            print("File saved to ",filename)
+            
+    elif choice == 3:
+      
+        if subchoice == 1:
+            txt = raw_input("Text to hash : ")
+            hashresult = hashtxt(txt)
+            print("Hash : ",hashresult[0],", saved to ",hashresult[1])
+            
+        elif subchoice == 2:
+            filepath = raw_input("File path : ")
+            hashresult = hashfile(filepath)
+            print("Hash : ",hashresult[0],", saved to ",hashresult[1])
+            
+        
+        
     elif choice == 4:
         # Block size
         block_size = input("Block size (256, 512 or 1024 bits) : ")
@@ -705,6 +1398,39 @@ def main():
             write_text_to_file(encrypted_filename+"_decrypted", decrypted_txt)
 
             print("Decrypted text written to {0}_decrypted".format(encrypted_filename))
+    elif choice == 5:
+        
+        filepath = raw_input("File path : ")
+        msgdecyphered = decypher_cramershoup(filepath)
+        print("Deciphered message : ",msgdecyphered)
+        
+    elif choice == 6:
+        if subchoice == 1:
+            msgtocheck = raw_input("Message to check : ")
+            file_path = raw_input("Hash file to check : ")
+            boolhash = verifhash_txt(msgtocheck,file_path)
+            if boolhash:
+                print("The two hashs are equal ! ")
+            else:
+                print("The two hashs are not equal ! ")
+        elif subchoice == 2:
+            filetocheck = raw_input("File to check : ")
+            filehashtocheck = raw_input("Hash file to check : ")
+            boolhash = verifhash_file(filetocheck,filehashtocheck)
+            if boolhash:
+                print("The two hashs are equal ! ")
+            else:
+                print("The two hashs are not equal ! ")            
+            
+def getscriptpath():
+    pathfile = os.path.realpath(__file__)
+    filename = "\\" + pathfile.split("\\").pop()
+    filepath = pathfile.replace(filename,"")
+    
+    return filepath
 
 if __name__ == "__main__":
     main()
+    
+    
+   
