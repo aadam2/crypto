@@ -8,6 +8,7 @@ import time
 import random
 import pickle
 import codecs
+import Crypto
 
 cstarray = [0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
             0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
@@ -18,14 +19,33 @@ cstarray = [0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111
             0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
             0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2]
 
-CONST_PATHFILE = os.path.realpath(__file__)
+
+CONST_PATHFILE = os.path.realpath("__file__")
 
 # Generic functions - Cramer-Shoup related
 # ------------------------------------------------------------------------------
 
+def isGenerator(a,p):
+    k = p-1
+    while k%2==0:
+        testvalue = computeModuleWithExpoBySquaring(a,k//2,p)
+        if testvalue == 1:
+            return False
+        k = k//2
+    return True    
+        
+    
+    
+def isPrime(p,k):
+    if not miller_rabin(p,k):
+        return False
+    else:
+        return True
+        
+    
 def getscriptpath():
     print("Original pathfile : {0}".format(CONST_PATHFILE))
-    filename = os.path.basename(__file__)
+    filename = os.path.basename("__file__")
     print("Filename used : {0}".format(filename))
     filepath = CONST_PATHFILE.replace(filename, "")
     filepath = filepath[:-1]
@@ -56,26 +76,26 @@ def convtobit2(b):
 
 def completemsg(msgbitarray):
     length = len(msgbitarray)
-    print("length : ",length)
+    #print("length : ",length)
     lengthmod = length%512
     if ((length%512)!=0):
         msgbitarray.append('0b1')
         k = 447-lengthmod
         length2 = len(msgbitarray)
-        print("length2 : ", length2)
+        #print("length2 : ", length2)
         for i in range(k):
             msgbitarray.append('0b0')
-        print("length array : ",len(msgbitarray))
+        #print("length array : ",len(msgbitarray))
         binlength = BitArray(bin(length))
-        print("BINLENGTH : ",binlength)
+        #print("BINLENGTH : ",binlength)
 
-        print("lengthbinarray : ",len(binlength))
+        #print("lengthbinarray : ",len(binlength))
         while len(binlength)<64:
             binlength.insert('0b0',0)
 
 
         msgbitarray.append(binlength)
-        print("final length : ", len(msgbitarray))
+        #print("final length : ", len(msgbitarray))
 
         return msgbitarray
 
@@ -90,7 +110,7 @@ def decoupage(bitarraymsg,lgth):
     else:
         nbblock = length//lgth + 1
 
-    print("NOMBRE DE BLOCS de ",lgth," : ",nbblock)
+    #print("NOMBRE DE BLOCS de ",lgth," : ",nbblock)
     for i in range(nbblock):
         #print("i = ",i)
         block = BitArray()
@@ -101,11 +121,11 @@ def decoupage(bitarraymsg,lgth):
             block.insert(convtobit2(bitarraymsg[j]),k)
             k+=1
 
-        print("BLOCK : ",block)
-        print("BLOCK : ",block.bin)
-        print("BLOCK LENGTH : ",len(block))
+        #print("BLOCK : ",block)
+        #print("BLOCK : ",block.bin)
+        #print("BLOCK LENGTH : ",len(block))
         listblock.insert(i,block)
-        print("LISTBLOCK : ",listblock)
+        #print("LISTBLOCK : ",listblock)
 
     return listblock
 
@@ -144,19 +164,19 @@ def convtobitarray(word):
 def completeBitArray(bitarray,size):
     lentocplt = size-len(bitarray)
     bitarray.prepend(BitArray(lentocplt))
-    print(bitarray.bin)
+    
     return bitarray
 
 def invertbitarray(bitarray):
     i=0
     bitarrayreturn = []
     for bit in bitarray:
-        print(bit)
+        #print(bit)
         if bit:
             bitarrayreturn.append(False)
         else:
             bitarrayreturn.append(True)
-        print(bitarrayreturn)
+        #print(bitarrayreturn)
     return BitArray(bitarrayreturn)
 
 def tobits(s): # Converts characters into a list of bits
@@ -169,7 +189,7 @@ def tobits(s): # Converts characters into a list of bits
 
 def frombits(bits): # Converts a list of bits into characters
     chars = []
-    for b in range(len(bits) / 8):
+    for b in range(len(bits) // 8):
         byte = bits[b*8:(b+1)*8]
         chars.append(chr(int(''.join([str(bit) for bit in byte]), 2)))
     return ''.join(chars)
@@ -404,8 +424,8 @@ def gettimestamp():
     return int(time.time())
 
 def contains(small, big): # Check if the elemets contained in the list "small" are also contained in the list "big"
-    for i in xrange(len(big)-len(small)+1):
-        for j in xrange(len(small)):
+    for i in range(len(big)-len(small)+1):
+        for j in range(len(small)):
             if big[i+j] != small[j]:
                 break
         else:
@@ -417,35 +437,50 @@ def contains(small, big): # Check if the elemets contained in the list "small" a
 
 # Generic functions - ThreeFish related
 # ------------------------------------------------------------------------------
-
-def open_file(filename, block_size): # Block size is given in bytes
+def open_file(filename):
     file_bits = []
-    with open(filename, "rb") as binary_file:
-        i = 1
-        # Seek position and read block_size bytes at the time
-        file_size = os.stat(filename).st_size
-        binary_file.seek(0)
-        current_cursor_position = 0
-        while (current_cursor_position + block_size) < file_size :
-            bytes_block = binary_file.read(block_size)
-
-            # Adding the bits
-            bits = tobits(bytes_block)
-            file_bits.append(bits)
-
-            current_cursor_position += block_size
-            binary_file.seek(current_cursor_position)
-            i += 1
-            if (current_cursor_position + block_size) >= file_size :
-                bytes_block = binary_file.read(file_size%block_size) # Reading the remaining characters
-                # Adding the last bits
-                bits = tobits(bytes_block)
-                file_bits.append(bits)
-
-        print("Done.")
-
-    file_bits = merge_list_of_lists(file_bits)
+    filetxt = []
+    with open(filename, 'rt') as text_file:
+        for l in text_file:
+            print(l)
+            for c in l:
+                print(c)
+                filetxt.append(c)
+    file_bits = tobits(filetxt)
+    print(file_bits)
     return file_bits
+    
+        
+    
+#def open_file(filename, block_size): # Block size is given in bytes
+    #file_bits = []
+    #with open(filename, "rb") as binary_file:
+        #i = 1
+        ## Seek position and read block_size bytes at the time
+        #file_size = os.stat(filename).st_size
+        #binary_file.seek(0)
+        #current_cursor_position = 0
+        #while (current_cursor_position + int(block_size)) < file_size :
+            #bytes_block = binary_file.read(block_size)
+
+            ## Adding the bits
+            #bits = tobits(bytes_block)
+            #file_bits.append(bits)
+
+            #current_cursor_position += block_size
+            #binary_file.seek(current_cursor_position)
+            #i += 1
+            #if (current_cursor_position + int(block_size)) >= file_size :
+                #bytes_block = binary_file.read(file_size%block_size) # Reading the remaining characters
+                ## Adding the last bits
+                #bits = tobits(bytes_block)
+                #file_bits.append(bits)
+
+        #print("Done.")
+
+    #file_bits = merge_list_of_lists(file_bits)
+    #print("FILE_BITS = ",file_bits)
+    #return file_bits
 
 def alt_open_file(filename, block_size): # Opens all the file at once
     file_bits = []
@@ -605,7 +640,7 @@ def reverse_offset_list(l, offset): # Offsets bits to the right
 
 def mix(block):
     # Browsing the block, two words at a time, doing the mixing work
-    nb_of_words = len(block) / 64
+    nb_of_words = len(block) // 64
     block_words_list = divide_list(block, nb_of_words)
 
     mixed_block = []
@@ -630,7 +665,7 @@ def mix(block):
 
 def reverse_mix(block):
     # Browsing the block, two words at a time, doing the mixing work
-    nb_of_words = len(block) / 64
+    nb_of_words = len(block) // 64
     block_words_list = divide_list(block, nb_of_words)
 
     retrieved_block = []
@@ -676,7 +711,7 @@ def threefish_key_schedule(key, block_size): # Generates the original keywords l
     tweaks.append(t2)
 
     # Computing number of keywords
-    nb_key_words = block_size / 64
+    nb_key_words = int(block_size) // 64
     keywords_list = divide_list(key, nb_key_words)
 
     # Now adding kN : kN = k0 ^ k1 ^ ... ^ k_N-1 ^ C
@@ -810,11 +845,11 @@ def cbc_threefish_encrypt(key, msg_bits, block_size): # CBC encryption mode
     # rounds_keywords_list[0][0] : contains the word 0 of the word list for round 0
 
      # Computing nb_msg_blocks
-    if len(msg_bits) % block_size == 0:
-        nb_msg_blocks = len(msg_bits) / block_size
+    if len(msg_bits) % int(block_size) == 0:
+        nb_msg_blocks = len(msg_bits) // int(block_size)
         msg_blocks = divide_list(msg_bits, nb_msg_blocks)
     else:
-        nb_msg_blocks = len(msg_bits) / block_size + 1
+        nb_msg_blocks = len(msg_bits) // int(block_size) + 1
         msg_blocks = alt_divide_list(msg_bits, nb_msg_blocks, block_size)
 
     round_number = 0
@@ -823,13 +858,13 @@ def cbc_threefish_encrypt(key, msg_bits, block_size): # CBC encryption mode
 
     encrypted_msg_blocks = [] # May contain 1 or several blocks
 
-    initialization_vector = generate_initialization_vector(block_size)
+    initialization_vector = generate_initialization_vector(int(block_size))
     previous_encrypted_block = initialization_vector
 
     for block in msg_blocks: # Browsing the blocks
         encrypted_block = block
 
-        while len(encrypted_block) < block_size:
+        while len(encrypted_block) < int(block_size):
             encrypted_block.append(0)
 
 
@@ -870,7 +905,9 @@ def cbc_threefish_decrypt(key, msg_bits, block_size): # CBC decryption mode
     # rounds_keywords_list[0] : contains the key words list for round 0
     # rounds_keywords_list[0][0] : contains the word 0 of the word list for round 0
 
-    nb_msg_blocks = len(msg_bits) / block_size
+    nb_msg_blocks = len(msg_bits) // int(block_size)
+    
+    print("nb_msg_blocks : ",nb_msg_blocks)
     msg_blocks = divide_list(msg_bits, nb_msg_blocks)
 
     round_number = 0
@@ -880,7 +917,8 @@ def cbc_threefish_decrypt(key, msg_bits, block_size): # CBC decryption mode
     decrypted_msg_blocks = [] # Will contain 1 or several blocks
 
     # Generating the initialization vector
-    initialization_vector = generate_initialization_vector(block_size)
+    initialization_vector = generate_initialization_vector(int(block_size))
+    print("INITIALIZATION VECTOR  : ",initialization_vector)
     previous_encrypted_block = initialization_vector
 
     for block in msg_blocks: # Browsing the blocks
@@ -888,13 +926,13 @@ def cbc_threefish_decrypt(key, msg_bits, block_size): # CBC decryption mode
         for round_number in range(75, -1, -1):
         #for i in range(1):
             #round_number = 75
-
+            print("round_number = ",round_number)
             # 1 - Reverse permute (same function here)
             decrypted_block = permute(decrypted_block)
-
+            print(decrypted_block)
             # 2 - Undo mixing
             decrypted_block = reverse_mix(decrypted_block)
-
+            print("DECRYPTED BLOCK = ",decrypted_block)
             # 3 - Substracting the key if necessary (depending on the round number)
             if (round_number == 0) or ((round_number % 4) == 0) or (round_number == 75): # Need to substract the key here
                 key_used_times += 1
@@ -905,7 +943,7 @@ def cbc_threefish_decrypt(key, msg_bits, block_size): # CBC decryption mode
                     #print("Used to DECRYPT : {0}".format(rounds_keywords_list[round_number][block_number]))
                     decrypted_block_words.append(xoring_two_lists(block_word, rounds_keywords_list[round_number][block_number]))
                 decrypted_block = merge_list_of_lists(decrypted_block_words)
-
+                print("DECRYPTED_BLOCK = ",decrypted_block)
         # Xoring with the previous encrypted block
         decrypted_block = xoring_two_lists(decrypted_block, previous_encrypted_block)
 
@@ -914,7 +952,7 @@ def cbc_threefish_decrypt(key, msg_bits, block_size): # CBC decryption mode
         previous_encrypted_block
 
     decrypted_msg = merge_list_of_lists(decrypted_msg_blocks)
-
+    print(decrypted_msg)
     return decrypted_msg # Regular ECB decryption mode
 
 # ------------------------------------------------------------------------------
@@ -923,10 +961,13 @@ def cbc_threefish_decrypt(key, msg_bits, block_size): # CBC decryption mode
 # ------------------------------------------------------------------------------
 
 def sha2(message):
+    
+    #On découpe le message
     bitarraymsg = BitArray(tobits(message))
     bitarraytohash = completemsg(bitarraymsg)
     arrayblocks = decoupage(bitarraytohash,512)
 
+    #on formate les constantes sur 32 bits
     h0 = completeBitArray(BitArray(bin(int(convcst(0x6a09e667),2))),32)
     h1 = completeBitArray(BitArray(bin(int(convcst(0xbb67ae85),2))),32)
     h2 = completeBitArray(BitArray(bin(int(convcst(0x3c6ef372),2))),32)
@@ -937,6 +978,9 @@ def sha2(message):
     h7 = completeBitArray(BitArray(bin(int(convcst(0x5be0cd19),2))),32)
 
     for block in arrayblocks:
+        #Pour chaque bloc :
+        
+        #On remplit le tableau W
         W = []
         arrayhash = decoupage(block,32)
         for t in range(0,16):
@@ -957,6 +1001,7 @@ def sha2(message):
         g = h6
         h = h7
 
+        #On donne leurs nouvelles valeurs aux variables
         for t in range (0,64):
             csttour = completeBitArray(BitArray(bin(int(convcst(cstarray[t]),2))),32)
             t1 = bitarrayadd(bitarrayadd(bitarrayadd(bitarrayadd(h , E1256(e)) , Chxyz(e,f,g)) , csttour) , W[t])
@@ -980,7 +1025,7 @@ def sha2(message):
         h6 = bitarrayadd(g , h6)
         h7 = bitarrayadd(h , h7)
 
-    print(len(h0 + h1 + h2 + h3 + h4 + h5 + h6 + h7)," bits")
+    #Le hash final est la cocnaténation de tous les sous-hashs calculés. Le résultat est sur 256 bits.
 
     return str(h0 + h1 + h2 + h3 + h4 + h5 + h6 + h7)[2:]
 
@@ -1049,46 +1094,46 @@ def verifhash_file(filepath, hashfiletocheck):
 
 def keygen_cramershoup(timestamp): # Génération de la clé grâce au timestamp
     publickeyarray = []
-    q = 0
+    
+    q = random.randint(2**511,2**512-1)
+    #Tant que q n'est pas premier, on le regénère. Il est choisi entre 2^511 et 2^512 pour être forcément écrit sur 512 bits
     while not miller_rabin(q,100):
         q = random.randint(2**511,2**512-1)
+        
+        
+    #Pour trouver des générateurs, prenons un ordre premier proche de q ; ainsi, tout nombre distinct de ordre est générateur d'ordre ordre. 
+    #L'ordre est choisi proche de q pour conserver un ensemble de valeurs proche du groupe d'ordre q
+    #Cette approche est probabiliste et compte sur le fait qu'un résultat d'une opération (ex exponentiation rapide) dans Zq ne dépasse pas l'ordre.
+    order = random.randint(2**511,q-2)
+    while not miller_rabin(q,100):
+        order = random.randint(2**511,q-2)
+        
     #print("On travaille dans Z",q)
-    g1=0
-    g2=0
-    while not miller_rabin(g1,100):
-        g1 = random.randint(0,q-1)
-    while not miller_rabin(g2,100):
-        g2 = random.randint(0,q-1)
-    #print("Les générateurs sont ",g1," et ",g2)
+    g1=random.randint(2,order-1)
+    g2=random.randint(2,order-1)
+    
+   
+    #Un entier premier dans Zq, premier avec q sera générateur
+    
+    #On génère les 5 valeurs de la clé privée
     x1 = random.randint(0,q-1)
     x2 = random.randint(0,q-1)
     y1 = random.randint(0,q-1)
     y2 = random.randint(0,q-1)
     z = random.randint(0,q-1)
-    #print("x1 = ",x1)
-    #print("x2 = ",x2)
-    #print("y1 = ",y1)
-    #print("y2 = ",y2)
-    #print("g1 = ",g1)
-    #print("g2 = ",g2)
-    #print("z = ",z)
-
+   
+    #On génère les valeurs de la clé publique (en plus du groupe cyclique et de ses générateurs)
     c = (computeModuleWithExpoBySquaring(g1,x1,q)*computeModuleWithExpoBySquaring(g2,x2,q))%q
-    #print("c = ",c)
-    d = (computeModuleWithExpoBySquaring(g1,y1,q)*computeModuleWithExpoBySquaring(g2,y2,q))%q
-    #print("d = ",d)
+    d = (computeModuleWithExpoBySquaring(g1,y1,q)*computeModuleWithExpoBySquaring(g2,y2,q))%q    
     h = computeModuleWithExpoBySquaring(g1,z,q)
-    #print("h = ",h)
+    
 
-    publickeyarray.append(c)
-    publickeyarray.append(d)
-    publickeyarray.append(h)
-    publickeyarray.append(g1)
-    publickeyarray.append(g2)
-    publickeyarray.append(q)
-
+    #On stocke les clés dans deux fichiers séparés grâce à une fonction dédiée
     storekeys(c,d,h,g1,g2,q,x1,x2,y1,y2,z,timestamp)
-    return publickeyarray
+    
+    print("Generated public key : \n c = ",c,"\n d = ",d,"\n h = ",h,"\n q = ",q,"\n g1 = ",g1,"\n g2 = ",g2)
+    print("Generated private key : \n x1 = ",x1,"\n x2 = ",x2,"\n y1 = ",y1,"\n y2 = ",y2,"\n z = ",z)
+    
 
 def savecipheredmsg(u1,u2,cipheredblockstring,cipheredhashstring,timestamp):
     currentpath = getscriptpath()
@@ -1105,8 +1150,10 @@ def savecipheredmsg(u1,u2,cipheredblockstring,cipheredhashstring,timestamp):
     file.close()
     return filename
 
-def cipher_cramershoup(msg,key,timestamp): # Fonction de chiffrement, demandant le message, la clé publique et le timestamp. On pourra éventuellement insérer la génération des clés dans cette fonction.
-    # La clé est fournie grâce à la fonction keygen_cramershoup() qui renvoie un tableau contenant les données
+def cipher_cramershoup(msg,timestamp): # Fonction de chiffrement, demandant le message, la clé publique et le timestamp. On pourra éventuellement insérer la génération des clés dans cette fonction.
+    # La clé est fournie grâce à la fonction restorepublickey qui renvoie un tableau contenant la clé en fonction du nom du fichier clé
+    
+    key = restorepublickey("publickey_"+str(timestamp)+".pblk")
     c = key[0]
     d = key[1]
     h = key[2]
@@ -1114,6 +1161,7 @@ def cipher_cramershoup(msg,key,timestamp): # Fonction de chiffrement, demandant 
     g2 = key[4]
     q = key[5]
 
+    #on génère k puis on calcule u1,u2 et h^k
     k = random.randint(0,2**512-1)
     kstatic = k
 
@@ -1130,23 +1178,29 @@ def cipher_cramershoup(msg,key,timestamp): # Fonction de chiffrement, demandant 
     #On sépare en blocs de 256 bits --> 32 caractères. Ainsi, le nombre correspondant au message sera au plus égal à 2^255 - 1, et on est sur qu'il sera dans Zq avec q un entier de 512 bits.
     totallength = len(msg)
     nbblocks = 0
+    
+    #on calcule le nombre de blocs
     if totallength%8 == 0:
         nbblocks = totallength//32
     else:
         nbblocks = totallength//32 + 1
-    print(str(nbblocks) + "blocs")
+     
     listblocks=[]
     for i in range(nbblocks):
         blockarr = []
         listblocks.append(blockarr)
+        
+        #On remplit les blocs des caractères correspondant au message
     for i in range(totallength):
         chara = msg[i]
         blocktofill = i//32
         posinblock = i%32
-        print(chara+";"+str(blocktofill)+";"+str(posinblock))
         listblocks[blocktofill].insert(posinblock, chara)
+        
     listcipheredblock10 = []
     listverifhashs = []
+    
+    
     for block in listblocks:
         blockinbase10 = 0
         blockarray = []
@@ -1158,47 +1212,44 @@ def cipher_cramershoup(msg,key,timestamp): # Fonction de chiffrement, demandant 
         #on récupère la valeur du nombre binaire ainsi formé
         blockinbase10 = BitArray(blockarray)._getint()
 
-        print("MESSAGE BLOCK = ",hex(blockinbase10))
+        
         e = hk*blockinbase10
 
         bitstre = hex(e)
-
-        print("cipherEDHEX = ", bitstre)
         stre = str(bitstre)[2:]
-
-        print("cipherEDMSG = ", stre)
-
+        
+        #On ajoute e à la liste des blocs chiffrés transmis
         listcipheredblock10.append(bitstre)
 
-        #fonction de hachage qui servira à la vérification (c'est là que ça foire :/)
+        #fonction de hachage qui servira à la vérification 
         stringciphered = bytes(codecs.encode(stre))
         stringu1 = bytes(codecs.encode(stru1))
         stringu2 = bytes(codecs.encode(stru2))
-        #print("STRINGcipherED = ",stringciphered, " -- STRINGU1 = ",stringu1," -- STRINGU2 = ",stringu2)
-
+        
+        
+        #On utilise la librairie openSSL pour le HASH dans le cadre de Cramer-Shoup, avec l'algorithe SHA256, car l'algorithme est très bien optimisé 
         hashmsg = hashlib._hashlib.openssl_sha256(stringciphered+stringu1+stringu2).hexdigest()
+        
         alpha = int(hashmsg,16)
 
-        #print("STRE = ",stre, "; STRU1 = ",stru1," ; STRU2 = ",stru2)
-        #print("\n ALPHA = ",alpha,"\n")
-
-        expka = k*alpha % q
-        #print(c,";",k,";",q,";",d,";",alpha,";",q)
+     
+        
+        #On calcule c^k,d^kalpha et finalement v      
         ck = computeModuleWithExpoBySquaring(c,k,q)
         dk = computeModuleWithExpoBySquaring(d,k,q)
         dkalpha = computeModuleWithExpoBySquaring(dk,alpha,q)
         v = ck * dkalpha %q
 
-        # print("v = ",v)
-        #print(hex(v))
+       
+        #On ajoute v à la liste des blocs de vérification qui seront transmis
         strv = str(hex(v))[2:]
         listverifhashs.append(strv)
-        #print("ck = ",computeModuleWithExpoBySquaring(c,k,q))
-        #print("dk = ",computeModuleWithExpoBySquaring(d,k,q))
-        dk = computeModuleWithExpoBySquaring(d,k,q)
-        #print("dkalpha = ",computeModuleWithExpoBySquaring(dk,alpha,q))
+        
+
     stringtosavemsg = ""
     stringtosavehash = ""
+    
+    #On sauvegarde le message avec un séparateur, "//"
     for strmsg in listcipheredblock10:
         stringtosavemsg = stringtosavemsg + strmsg + "//"
     for strhash in listverifhashs:
@@ -1206,20 +1257,20 @@ def cipher_cramershoup(msg,key,timestamp): # Fonction de chiffrement, demandant 
 
     #on sauvegarde grâce à la fonction savecipheredmsg() qui renvoie le nom du fichier
     filename = savecipheredmsg(stru1,stru2,stringtosavemsg,stringtosavehash,timestamp)
-
+    print("File saved to : ",filename,", in ./cramershoup/cipheredmsgs")
 
     return filename
 
 def cipherfile_cramershoup(filepath,key,timestamp):
     filetexttocipher = ""
     filetocipher = open(filepath,'rt')
-    filetexttocipher = filetocipher.read()
-    #for line in filetocipher:
-        #filetexttocipher = filetexttocipher + line + "\n"
+   #filetexttocipher = filetocipher.read()
+    for line in filetocipher:
+        filetexttocipher = filetexttocipher + line + "\n"
     filetocipher.close()
 
     print(filetexttocipher)
-    return cipher_cramershoup(filetexttocipher,key,timestamp)
+    return cipher_cramershoup(filetexttocipher,timestamp)
 
 def decipher_cramershoup(msgfilename):
     msgfinal = ""
@@ -1294,6 +1345,8 @@ def decipher_cramershoup(msgfilename):
 
         #on calcule le hash pour chaque bloc et on vérifie qu'il est égal au hash stocké
         hashmsg2 = hashlib._hashlib.openssl_sha256(stringciphered+stringu1+stringu2).hexdigest()
+        
+        #hashmsg2 = sha2(ei[2:]+u1+u2)
         alpha = int(hashmsg2,16)
 
         #print("\n ALPHA = ",alpha,"\n")
@@ -1320,7 +1373,7 @@ def decipher_cramershoup(msgfilename):
         #si le hash est valide : on déchiffre chaque bloc puis on retourne le tableau des blocs déchiffrés
         arraymsg = []
         u1z = computeModuleWithExpoBySquaring(numberu1,numberz,q)
-        print("u1z = ",u1z)
+        #print("u1z = ",u1z)
 
         msgtotal = ""
 
@@ -1329,12 +1382,12 @@ def decipher_cramershoup(msgfilename):
             msgblck = []
             numbere = int(ei,16)
 
-            print("HEX MSG = ",hex(numbere))
+            #print("HEX MSG = ",hex(numbere))
             m = numbere*invu1z % q
 
             strm = str(hex(m))[2:]
 
-            print("MESSAGE  = ",strm)
+            #print("MESSAGE  = ",strm)
             for i in range(len(strm)//2):
                 charinhex = strm[2*i]+strm[2*i+1]
                 character = chr(int(charinhex,16))
@@ -1345,8 +1398,8 @@ def decipher_cramershoup(msgfilename):
             print(msgblck)
             for c in msgblck:
                 msgtotal = msgtotal + c
-            print("Deciphered message : \n",msgfinal)
-
+        
+        print("Deciphered message : \n",msgtotal)
         return msgtotal
 
 # ------------------------------------------------------------------------------
@@ -1374,16 +1427,16 @@ def main():
         block_size = input("Block size (256, 512 or 1024 bits) : ")
 
         # Key used
-        key = raw_input("Key : ")
+        key = codecs.encode(input("Key : "))
         key_hash = hashlib.md5() # Using md5 - most convenient output size for this purpose
         key_hash.update(key)
         key_bits = tobits(key_hash.hexdigest())
 
         # Checking the key size - must be EXACTLY equal to the block size
-        if len(key_bits) < block_size:
+        if len(key_bits) < int(block_size):
             # Repeating the key bits until the list is as long as the block size
             i = 0
-            while len(key_bits) < block_size:
+            while len(key_bits) < int(block_size):
                 key_bits.append(key_bits[i])
                 i+=1
 
@@ -1395,15 +1448,15 @@ def main():
 
         if subchoice == 1:
             # Text to encrypt
-            text_to_encrypt = raw_input("Text to encrypt : ")
+            text_to_encrypt = input("Text to encrypt : ")
             bits_to_encrypt = tobits(text_to_encrypt)
             print("Text to encrypt size : {0} bits".format(len(bits_to_encrypt)))
 
             # Checking the input size
-            if len(bits_to_encrypt) < block_size:
+            if len(bits_to_encrypt) < int(block_size):
                 print("The total number of bits ({0} bits) to encrypt is lower than the block size ({1} bits)".format(len(bits_to_encrypt), block_size))
                 # Padding zeros, so we've got at least one block to encrypt
-                while len(bits_to_encrypt) < block_size:
+                while len(bits_to_encrypt) < int(block_size):
                     bits_to_encrypt.append(0)
                 print("New nb_of_bits_to_encrypt : {0}".format(len(bits_to_encrypt)))
 
@@ -1435,16 +1488,17 @@ def main():
 
         elif subchoice == 2:
             # File to encrypt
-            file_to_encrypt = raw_input("File path : ")
-            clear_file_bits = open_file(file_to_encrypt, block_size)
+            file_to_encrypt = input("File path : ")
+            #clear_file_bits = open_file(file_to_encrypt, block_size)
+            clear_file_bits = open_file(file_to_encrypt)
 
             original_file_msg = frombits(clear_file_bits)
 
             # Checking the input size
-            if len(clear_file_bits) < block_size:
+            if len(clear_file_bits) < int(block_size):
                 print("The total number of bits ({0} bits) to encrypt is lower than the block size ({1} bits)".format(len(clear_file_bits), block_size))
                 # Padding zeros, so we've got at least one block to encrypt
-                while len(clear_file_bits) < block_size:
+                while len(clear_file_bits) < int(block_size):
                     clear_file_bits.append(0)
                 print("New nb_of_bits_to_encrypt : {0}".format(len(clear_file_bits)))
 
@@ -1484,14 +1538,14 @@ def main():
 
 
         if subchoice == 1:
-            text_to_encrypt = raw_input("Text to encrypt : ")
+            text_to_encrypt = input("Text to encrypt : ")
 
             key = keygen_cramershoup(timestamp)
-            filename = cipher_cramershoup(text_to_encrypt,key,timestamp)
+            filename = cipher_cramershoup(text_to_encrypt,timestamp)
             print("File saved to ",filename)
 
         elif subchoice == 2:
-            file_to_encrypt = raw_input("File path : ")
+            file_to_encrypt = input("File path : ")
             key = keygen_cramershoup(timestamp)
             filename = cipherfile_cramershoup(file_to_encrypt,key,timestamp)
             print("File saved to ",filename)
@@ -1499,13 +1553,13 @@ def main():
     elif choice == 3:
 
         if subchoice == 1:
-            txt = raw_input("Text to hash : ")
-            filename = raw_input("File name to save the hash : ")
+            txt = input("Text to hash : ")
+            filename = input("File name to save the hash : ")
             hashresult = hashtxt(txt,filename)
             print("Hash : ",hashresult[0],", saved to ",hashresult[1])
 
         elif subchoice == 2:
-            filepath = raw_input("File path : ")
+            filepath = input("File path : ")
             hashresult = hashfile(filepath)
             print("Hash : ",hashresult[0],", saved to ",hashresult[1])
 
@@ -1514,16 +1568,16 @@ def main():
         block_size = input("Block size (256, 512 or 1024 bits) : ")
 
         # Key used
-        key = raw_input("Key : ")
+        key = input("Key : ")
         key_hash = hashlib.md5() # Using md5 - most convenient output size for this purpose
-        key_hash.update(key)
+        key_hash.update(codecs.encode(key))
         key_bits = tobits(key_hash.hexdigest())
 
         # Checking the key size - must be EXACTLY equal to the block size
-        if len(key_bits) < block_size:
+        if len(key_bits) < int(block_size):
             # Repeating the key bits until the list is as long as the block size
             i = 0
-            while len(key_bits) < block_size:
+            while len(key_bits) < int(block_size):
                 key_bits.append(key_bits[i])
                 i+=1
 
@@ -1545,7 +1599,7 @@ def main():
             print("Decrypted message bits : {0}".format(decrypted_msg))
             print("Decrypted text : {0}".format(decrypted_txt))
         elif subchoice == 2:
-            encrypted_filename = raw_input("File path : ")
+            encrypted_filename = input("File path : ")
             encrypted_msg = read_file_content(encrypted_filename)
             print("Number of bits to decrypt : {0}".format(len(encrypted_msg)))
             print("Decrypting... please wait")
@@ -1564,14 +1618,14 @@ def main():
             print("Decrypted text written to {0}_decrypted".format(encrypted_filename))
 
     elif choice == 5:
-        filepath = raw_input("File path : ")
+        filepath = input("File path : ")
         msgdeciphered = decipher_cramershoup(filepath)
-        print("Deciphered message : ",msgdeciphered)
+       
 
     elif choice == 6:
         if subchoice == 1:
-            msgtocheck = raw_input("Message to check : ")
-            file_path = raw_input("Hash file to check : ")
+            msgtocheck = input("Message to check : ")
+            file_path = input("Hash file to check : ")
             boolhash = verifhash_txt(msgtocheck,file_path)
             if boolhash:
                 print("The two hashs are equal ! ")
@@ -1579,13 +1633,16 @@ def main():
                 print("The two hashs are not equal ! ")
 
         elif subchoice == 2:
-            filetocheck = raw_input("File to check : ")
-            filehashtocheck = raw_input("Hash file to check : ")
+            filetocheck = input("File to check : ")
+            filehashtocheck = input("Hash file to check : ")
             boolhash = verifhash_file(filetocheck,filehashtocheck)
             if boolhash:
                 print("The two hashs are equal ! ")
             else:
                 print("The two hashs are not equal ! ")
-
+    os.chdir(getscriptpath())
+    main()
+    
+    
 if __name__ == "__main__":
     main()
